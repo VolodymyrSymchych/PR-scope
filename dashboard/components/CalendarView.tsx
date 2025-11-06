@@ -73,7 +73,7 @@ export function CalendarView() {
         </div>
         <div className="flex items-center space-x-2">
           <span className="text-sm text-gray-600 dark:text-gray-400">Show:</span>
-          <select className="text-sm bg-transparent border-0 text-gray-900 dark:text-gray-100 focus:outline-none">
+          <select className="text-sm bg-white dark:bg-gray-800 border-0 text-gray-900 dark:text-gray-100 focus:outline-none rounded px-2 py-1">
             <option>1 Week</option>
             <option>2 Weeks</option>
             <option>1 Month</option>
