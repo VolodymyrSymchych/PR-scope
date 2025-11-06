@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2, CheckCircle, Clock } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { api } from '@/lib/api';
+import { cn } from '../lib/utils';
+import { api } from '../lib/api';
 
 interface Stage {
   name: string;

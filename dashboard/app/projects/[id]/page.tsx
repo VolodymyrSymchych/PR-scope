@@ -14,8 +14,8 @@ import {
   FileText,
   Download,
 } from 'lucide-react';
-import { api } from '@/lib/api';
-import { cn, getRiskColor, formatDate } from '@/lib/utils';
+import { api } from '../../lib/api';
+import { cn, getRiskColor, formatDate } from '../../lib/utils';
 
 interface ProjectDetail {
   project: {

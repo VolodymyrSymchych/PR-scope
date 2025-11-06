@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Plus, Filter, Search } from 'lucide-react';
-import { ProjectCard } from '@/components/ProjectCard';
-import { api, Project } from '@/lib/api';
+import { ProjectCard } from '../../components/ProjectCard';
+import { api, Project } from '../../lib/api';
 import { useRouter } from 'next/navigation';
 
 export default function ProjectsPage() {

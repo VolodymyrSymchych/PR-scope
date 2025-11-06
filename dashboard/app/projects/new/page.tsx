@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload, FileText, Loader2 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api } from '../../lib/api';
 
 export default function NewAnalysisPage() {
   const router = useRouter();
