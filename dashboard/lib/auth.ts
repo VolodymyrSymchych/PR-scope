@@ -43,7 +43,16 @@ export async function getSession(): Promise<SessionData | null> {
 
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
-    return payload as SessionData;
+    
+    if (!payload.userId || !payload.email || !payload.username) {
+      return null;
+    }
+    
+    return {
+      userId: payload.userId as number,
+      email: payload.email as string,
+      username: payload.username as string,
+    };
   } catch (error) {
     return null;
   }
