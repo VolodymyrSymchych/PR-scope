@@ -1,10 +1,40 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User, Bell, CreditCard, Shield, Trash2, Save } from 'lucide-react';
+
+interface UserData {
+  id: number;
+  email: string;
+  username: string;
+  fullName?: string | null;
+  emailVerified: boolean;
+  role: string;
+}
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('profile');
+  const [user, setUser] = useState<UserData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.user) {
+          setUser(data.user);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to fetch user:', err);
+        setLoading(false);
+      });
+  }, []);
+
+  const nameParts = user?.fullName?.split(' ') || [];
+  const firstName = nameParts[0] || '';
+  const lastName = nameParts.slice(1).join(' ') || '';
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
@@ -54,8 +84,10 @@ export default function SettingsPage() {
                 </label>
                 <input
                   type="text"
+                  value={firstName}
                   placeholder="John"
-                  className="w-full px-4 py-3 rounded-lg glass-input text-text-primary placeholder:text-text-tertiary"
+                  disabled
+                  className="w-full px-4 py-3 rounded-lg glass-input text-text-primary placeholder:text-text-tertiary opacity-75"
                 />
               </div>
               <div>
@@ -64,8 +96,10 @@ export default function SettingsPage() {
                 </label>
                 <input
                   type="text"
+                  value={lastName}
                   placeholder="Doe"
-                  className="w-full px-4 py-3 rounded-lg glass-input text-text-primary placeholder:text-text-tertiary"
+                  disabled
+                  className="w-full px-4 py-3 rounded-lg glass-input text-text-primary placeholder:text-text-tertiary opacity-75"
                 />
               </div>
             </div>
@@ -75,18 +109,29 @@ export default function SettingsPage() {
               </label>
               <input
                 type="email"
+                value={user?.email || ''}
                 placeholder="john@example.com"
-                className="w-full px-4 py-3 rounded-lg glass-input text-text-primary placeholder:text-text-tertiary"
+                disabled
+                className="w-full px-4 py-3 rounded-lg glass-input text-text-primary placeholder:text-text-tertiary opacity-75"
               />
+              <div className="mt-2 flex items-center gap-2">
+                {user?.emailVerified ? (
+                  <span className="text-sm text-green-500">✓ Verified</span>
+                ) : (
+                  <span className="text-sm text-warning">⚠️ Not verified</span>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-2">
-                Company
+                Username
               </label>
               <input
                 type="text"
-                placeholder="Acme Inc."
-                className="w-full px-4 py-3 rounded-lg glass-input text-text-primary placeholder:text-text-tertiary"
+                value={user?.username || ''}
+                placeholder="johndoe"
+                disabled
+                className="w-full px-4 py-3 rounded-lg glass-input text-text-primary placeholder:text-text-tertiary opacity-75"
               />
             </div>
             <div>
