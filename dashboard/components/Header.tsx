@@ -1,7 +1,8 @@
 'use client';
 
-import { Search, Bell, ChevronDown } from 'lucide-react';
+import { Search, ChevronDown } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
+import { NotificationBell } from './notifications/NotificationBell';
 import Image from 'next/image';
 
 export function Header() {
@@ -35,10 +36,7 @@ export function Header() {
           <ThemeToggle />
 
           {/* Notifications */}
-          <button className="relative p-2 rounded-lg glass-subtle hover:glass-light transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-110 active:scale-95">
-            <Bell className="w-5 h-5 text-text-secondary transition-transform duration-300 hover:rotate-12" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-[#8098F9] rounded-full shadow-[0_0_8px_rgba(128,152,249,0.8)] animate-pulse"></span>
-          </button>
+          <NotificationBell />
 
           {/* User profile */}
           <div className="flex items-center space-x-3 pl-4 border-l border-white/10">
