@@ -52,7 +52,11 @@ export async function POST(request: Request) {
     });
 
     console.log('Checkout session created:', session.id);
-    return NextResponse.json({ sessionId: session.id });
+    console.log('Checkout URL:', session.url);
+    return NextResponse.json({ 
+      sessionId: session.id,
+      url: session.url 
+    });
   } catch (error: any) {
     console.error('Stripe checkout error:', error);
     console.error('Error details:', {
