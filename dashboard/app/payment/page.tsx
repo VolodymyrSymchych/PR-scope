@@ -72,18 +72,10 @@ export default function PaymentPage() {
     setLoading(planId);
 
     try {
-      // For demo purposes, simulate success
-      // In production, this would call Stripe API
-      setTimeout(() => {
-        alert('Demo mode: Payment would be processed here. Add your Stripe keys to enable real payments.');
-        setLoading(null);
-      }, 1000);
-      
-      /* Uncomment this when Stripe keys are configured:
       const stripe = await stripePromise;
       
       if (!stripe) {
-        alert('Stripe failed to load');
+        alert('Stripe failed to load. Please refresh the page.');
         setLoading(null);
         return;
       }
@@ -101,22 +93,22 @@ export default function PaymentPage() {
         }),
       });
 
-      const { sessionId, error } = await response.json();
+      const data = await response.json();
 
-      if (error) {
-        alert(error);
+      if (data.error) {
+        alert(data.error);
         setLoading(null);
         return;
       }
 
-      if (sessionId) {
-        const result = await stripe.redirectToCheckout({ sessionId });
+      if (data.sessionId) {
+        const result = await stripe.redirectToCheckout({ sessionId: data.sessionId });
         
         if (result.error) {
           alert(result.error.message);
+          setLoading(null);
         }
       }
-      */
     } catch (error) {
       console.error('Payment error:', error);
       alert('Payment failed. Please try again.');
