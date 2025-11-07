@@ -199,7 +199,10 @@ export default function SettingsPage() {
                   <h3 className="text-2xl font-bold text-text-primary mb-1">Pro Plan</h3>
                   <p className="text-text-secondary">$29/month</p>
                 </div>
-                <button className="px-4 py-2 glass-light text-text-primary rounded-lg hover:glass-medium transition-all font-medium">
+                <button 
+                  onClick={() => window.location.href = '/payment'}
+                  className="px-4 py-2 glass-button text-white rounded-lg transition-all font-medium"
+                >
                   Change Plan
                 </button>
               </div>
@@ -225,7 +228,10 @@ export default function SettingsPage() {
                   <p className="text-sm text-text-secondary">Expires 12/25</p>
                 </div>
               </div>
-              <button className="px-4 py-2 text-sm font-medium text-text-primary glass-subtle hover:glass-light rounded-lg transition-all">
+              <button 
+                onClick={() => window.location.href = '/settings/payment-methods'}
+                className="px-4 py-2 text-sm font-medium text-text-primary glass-subtle hover:glass-light rounded-lg transition-all"
+              >
                 Update
               </button>
             </div>

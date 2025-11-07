@@ -281,7 +281,7 @@ function TaskCard({ task, onStatusChange, getPriorityColor }: TaskCardProps) {
   const totalSubtasks = task.subtasks.length;
 
   return (
-    <div className="bg-surface dark:bg-surface-elevated rounded-xl p-4 border border-border hover:shadow-lg transition-shadow">
+    <div className="glass-medium rounded-xl p-4 border border-white/10 hover:glass-light transition-all duration-300 hover:scale-[1.02]">
       <div className="space-y-3">
         <div className="flex items-start justify-between">
           <h4 className="font-semibold text-text-primary">{task.title}</h4>
@@ -315,29 +315,29 @@ function TaskCard({ task, onStatusChange, getPriorityColor }: TaskCardProps) {
         </div>
 
         {/* Status change buttons */}
-        <div className="flex gap-2 pt-2 border-t border-border">
+        <div className="flex gap-2 pt-2 border-t border-white/10">
           {task.status !== 'todo' && (
             <button
               onClick={() => onStatusChange(task.id, 'todo')}
-              className="flex-1 px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-800 text-text-secondary hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg glass-light text-text-primary hover:glass-medium transition-all hover:scale-105"
             >
-              To Do
+              📋 To Do
             </button>
           )}
           {task.status !== 'in_progress' && (
             <button
               onClick={() => onStatusChange(task.id, 'in_progress')}
-              className="flex-1 px-2 py-1 text-xs rounded bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/40 transition-colors"
+              className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:bg-blue-500/30 transition-all hover:scale-105"
             >
-              In Progress
+              ⚡ In Progress
             </button>
           )}
           {task.status !== 'done' && (
             <button
               onClick={() => onStatusChange(task.id, 'done')}
-              className="flex-1 px-2 py-1 text-xs rounded bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/40 transition-colors"
+              className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg bg-green-500/20 text-green-300 border border-green-500/30 hover:bg-green-500/30 transition-all hover:scale-105"
             >
-              Done
+              ✓ Done
             </button>
           )}
         </div>

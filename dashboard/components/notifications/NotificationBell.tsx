@@ -92,7 +92,7 @@ export function NotificationBell() {
             className="fixed inset-0 z-40"
             onClick={() => setShowNotifications(false)}
           />
-          <div className="absolute right-0 mt-2 w-96 max-h-[600px] glass-heavy rounded-2xl border border-white/20 shadow-2xl z-50 overflow-hidden backdrop-blur-xl bg-[#0F1419]/95">
+          <div className="absolute right-0 mt-2 w-96 max-h-[600px] rounded-2xl border border-white/20 shadow-2xl z-50 overflow-hidden bg-[#0F1419]">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-border">
               <h3 className="font-semibold text-text-primary">Notifications</h3>
