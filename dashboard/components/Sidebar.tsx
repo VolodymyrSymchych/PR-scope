@@ -19,8 +19,8 @@ import { cn } from '@/lib/utils';
 const navigation = [
   { name: 'Overview', href: '/', icon: LayoutDashboard },
   { name: 'Projects', href: '/projects', icon: FolderKanban },
+  { name: 'Timeline', href: '/projects-timeline', icon: Calendar },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
-  { name: 'Timeline', href: '/timeline', icon: Calendar },
   { name: 'Attendance', href: '/attendance', icon: Clock },
   { name: 'Reports', href: '/reports', icon: FileText },
   { name: 'Team', href: '/team', icon: Users },
