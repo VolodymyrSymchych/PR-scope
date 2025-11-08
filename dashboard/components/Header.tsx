@@ -2,7 +2,6 @@
 
 import { Search, ChevronDown } from 'lucide-react';
 import { NotificationBell } from './notifications/NotificationBell';
-import { Logo } from './Logo';
 import { useEffect, useState } from 'react';
 
 interface User {
@@ -37,7 +36,6 @@ export function Header() {
       <div className="flex items-center justify-between px-8 py-4">
         {/* Left section */}
         <div className="flex items-center space-x-8">
-          <Logo variant="compact" showText={true} />
           <div className="relative group">
             <button className="flex items-center space-x-2 glass-light px-3 py-1.5 rounded-lg hover:glass-medium transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-105 active:scale-95">
               <span className="text-sm text-text-primary">All Teams</span>
@@ -125,9 +123,25 @@ export function Header() {
                 </button>
                 <div className="border-t border-white/10 mt-2 pt-2">
                   <button 
-                    onClick={() => {
-                      document.cookie = 'session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-                      window.location.href = '/sign-in';
+                    onClick={async () => {
+                      try {
+                        const response = await fetch('/api/auth/logout', {
+                          method: 'POST',
+                        });
+                        
+                        if (response.ok) {
+                          window.location.href = '/sign-in';
+                        } else {
+                          // If API fails, still try to clear cookie and redirect
+                          document.cookie = 'session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+                          window.location.href = '/sign-in';
+                        }
+                      } catch (error) {
+                        console.error('Logout error:', error);
+                        // Fallback: clear cookie and redirect
+                        document.cookie = 'session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+                        window.location.href = '/sign-in';
+                      }
                     }}
                     className="w-full text-left px-3 py-2 rounded-lg hover:bg-red-500/10 text-red-400 transition-all"
                   >

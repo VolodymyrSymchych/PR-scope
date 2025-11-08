@@ -11,7 +11,7 @@ interface LogoProps {
 }
 
 export function Logo({ variant = 'default', showText = true, className = '' }: LogoProps) {
-  const logoSize = variant === 'compact' ? 40 : variant === 'icon' ? 32 : 48;
+  const logoSize = variant === 'compact' ? 40 : variant === 'icon' ? 56 : 48;
   const textSize = variant === 'compact' ? 'text-lg' : 'text-xl';
   
   return (

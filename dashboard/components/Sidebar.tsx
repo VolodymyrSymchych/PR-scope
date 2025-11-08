@@ -33,9 +33,9 @@ export function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-20 glass-medium border-r border-white/10">
-      <div className="flex h-full flex-col items-center py-8 space-y-8">
+      <div className="flex h-full flex-col items-center py-6 space-y-8">
         {/* Logo */}
-        <div className="p-2">
+        <div className="flex items-center justify-center">
           <Logo variant="icon" showText={false} />
         </div>
 
