@@ -19,14 +19,14 @@ export function Logo({ variant = 'default', showText = true, className = '' }: L
       <motion.div
         className="relative"
         whileHover={{ scale: 1.05 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 10 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
       >
         <Image
           src="/logo.png"
           alt="Project Scope Analyzer Logo"
           width={logoSize}
           height={logoSize}
-          className="object-contain drop-shadow-lg group-hover:drop-shadow-xl transition-all duration-300"
+          className="object-contain drop-shadow-lg group-hover:drop-shadow-xl transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
           priority
         />
       </motion.div>

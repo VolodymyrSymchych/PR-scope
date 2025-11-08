@@ -63,11 +63,11 @@ export function CalendarView() {
             NOV <span className="text-text-tertiary">2020</span>
           </h3>
           <div className="flex items-center space-x-2">
-            <button className="p-1 glass-subtle hover:glass-light rounded transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-110 active:scale-95">
-              <ChevronLeft className="w-4 h-4 text-text-tertiary transition-transform duration-300 hover:-translate-x-0.5" />
+            <button className="p-1 glass-subtle hover:glass-light rounded transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-110 active:scale-95">
+              <ChevronLeft className="w-4 h-4 text-text-tertiary transition-transform duration-200 hover:-translate-x-0.5" />
             </button>
-            <button className="p-1 glass-subtle hover:glass-light rounded transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-110 active:scale-95">
-              <ChevronRight className="w-4 h-4 text-text-tertiary transition-transform duration-300 hover:translate-x-0.5" />
+            <button className="p-1 glass-subtle hover:glass-light rounded transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-110 active:scale-95">
+              <ChevronRight className="w-4 h-4 text-text-tertiary transition-transform duration-200 hover:translate-x-0.5" />
             </button>
           </div>
         </div>
@@ -92,7 +92,7 @@ export function CalendarView() {
               {events[weekDates[idx]]?.map((event, eventIdx) => (
                 <div
                   key={eventIdx}
-                  className={`p-2 rounded-lg text-xs glass-light glass-hover transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${event.color}`}
+                  className={`p-2 rounded-lg text-xs glass-light glass-hover transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] ${event.color}`}
                 >
                   <div className="font-medium mb-1">{event.title}</div>
                   {event.team && (
@@ -103,7 +103,7 @@ export function CalendarView() {
                       {event.members.map((member, idx) => (
                         <div
                           key={idx}
-                          className="w-5 h-5 rounded-full bg-[#8098F9] border-2 border-white/20 flex items-center justify-center text-white text-[10px] font-semibold shadow-[0_0_10px_rgba(128,152,249,0.3)] transition-transform duration-300 hover:scale-125 hover:z-10"
+                          className="w-5 h-5 rounded-full bg-[#8098F9] border-2 border-white/20 flex items-center justify-center text-white text-[10px] font-semibold shadow-[0_0_10px_rgba(128,152,249,0.3)] transition-transform duration-200 hover:scale-125 hover:z-10"
                         >
                           {member}
                         </div>

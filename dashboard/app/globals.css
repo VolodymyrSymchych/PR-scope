@@ -175,7 +175,7 @@
   }
 
   .glass-hover {
-    transition: all 0.4s var(--ease-smooth-out);
+    transition: all 0.2s var(--ease-smooth-out);
     will-change: transform, background-color, border-color;
   }
 
@@ -185,7 +185,7 @@
     -webkit-backdrop-filter: blur(18px);
     border: 1px solid rgba(255, 255, 255, 0.15);
     transform: translateY(-4px) scale(1.01);
-    transition: all 0.3s var(--ease-spring);
+    transition: all 0.15s var(--ease-spring);
   }
 
   .glass-button {
@@ -194,7 +194,7 @@
     -webkit-backdrop-filter: blur(10px);
     border: 1px solid rgba(128, 152, 249, 0.4);
     box-shadow: 0 4px 15px rgba(128, 152, 249, 0.3);
-    transition: all 0.4s var(--ease-smooth-out);
+    transition: all 0.2s var(--ease-smooth-out);
     will-change: transform, box-shadow, background;
   }
 
@@ -202,12 +202,12 @@
     background: linear-gradient(135deg, rgba(128, 152, 249, 0.4), rgba(128, 152, 249, 0.3));
     box-shadow: 0 8px 25px rgba(128, 152, 249, 0.5);
     transform: translateY(-3px) scale(1.02);
-    transition: all 0.3s var(--ease-spring);
+    transition: all 0.15s var(--ease-spring);
   }
 
   .glass-button:active {
     transform: translateY(-1px) scale(0.98);
-    transition: all 0.15s var(--ease-smooth-in);
+    transition: all 0.1s var(--ease-smooth-in);
   }
 
   .glass-input {
@@ -215,7 +215,7 @@
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: all 0.3s var(--ease-smooth-out);
+    transition: all 0.2s var(--ease-smooth-out);
     will-change: background-color, border-color, box-shadow;
   }
 
@@ -224,7 +224,7 @@
     border: 1px solid rgba(128, 152, 249, 0.6);
     box-shadow: 0 0 20px rgba(128, 152, 249, 0.3);
     outline: none;
-    transition: all 0.2s var(--ease-smooth-out);
+    transition: all 0.15s var(--ease-smooth-out);
   }
   
   .gradient-text {
@@ -316,17 +316,17 @@
   * {
     transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
     transition-timing-function: var(--ease-smooth-out);
-    transition-duration: 0.2s;
+    transition-duration: 0.15s;
   }
 
   /* Enhanced hover transitions */
   button, a, [role="button"] {
-    transition: all 0.3s var(--ease-smooth-out);
+    transition: all 0.2s var(--ease-smooth-out);
     will-change: transform;
   }
 
   button:hover, a:hover, [role="button"]:hover {
-    transition: all 0.2s var(--ease-spring);
+    transition: all 0.15s var(--ease-spring);
   }
 
   button:active, a:active, [role="button"]:active {
@@ -335,12 +335,12 @@
 
   /* Smooth card animations */
   .glass-light, .glass-medium, .glass-heavy, .glass-strong {
-    transition: all 0.4s var(--ease-smooth-out);
+    transition: all 0.2s var(--ease-smooth-out);
     will-change: transform, background-color, border-color, box-shadow;
   }
 
   .glass-light:hover, .glass-medium:hover, .glass-heavy:hover, .glass-strong:hover {
-    transition: all 0.3s var(--ease-spring);
+    transition: all 0.15s var(--ease-spring);
   }
   
   .bg-grid {

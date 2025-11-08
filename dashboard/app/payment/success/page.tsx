@@ -25,13 +25,13 @@ function PaymentSuccessContent() {
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
         className="max-w-md w-full glass-medium rounded-3xl p-12 border border-white/10 text-center"
       >
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
           className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center shadow-[0_0_40px_rgba(34,197,94,0.5)]"
         >
           <CheckCircle className="w-12 h-12 text-white" />

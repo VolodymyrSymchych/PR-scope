@@ -281,7 +281,7 @@ function TaskCard({ task, onStatusChange, getPriorityColor }: TaskCardProps) {
   const totalSubtasks = task.subtasks.length;
 
   return (
-    <div className="glass-medium rounded-xl p-4 border border-white/10 hover:glass-light transition-all duration-300 hover:scale-[1.02]">
+    <div className="glass-medium rounded-xl p-4 border border-white/10 hover:glass-light transition-all duration-200 hover:scale-[1.02]">
       <div className="space-y-3">
         <div className="flex items-start justify-between">
           <h4 className="font-semibold text-text-primary">{task.title}</h4>

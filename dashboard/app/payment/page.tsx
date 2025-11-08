@@ -142,7 +142,7 @@ export default function PaymentPage() {
             return (
               <div
                 key={plan.id}
-                className={`relative bg-[#2a2d35] rounded-3xl p-8 border transition-all duration-300 hover:scale-[1.02] flex flex-col ${
+                className={`relative bg-[#2a2d35] rounded-3xl p-8 border transition-all duration-200 hover:scale-[1.02] flex flex-col ${
                   plan.popular
                     ? 'border-purple-500/50 shadow-[0_0_40px_rgba(168,85,247,0.3)]'
                     : 'border-white/10'
@@ -189,7 +189,7 @@ export default function PaymentPage() {
                 <button
                   onClick={() => handleCheckout(plan.id, priceNum)}
                   disabled={loading === plan.id}
-                  className={`w-full py-4 rounded-xl font-bold text-base transition-all duration-300 flex items-center justify-center gap-2 mt-auto ${
+                  className={`w-full py-4 rounded-xl font-bold text-base transition-all duration-200 flex items-center justify-center gap-2 mt-auto ${
                     plan.popular
                       ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-[0_0_30px_rgba(168,85,247,0.4)] hover:shadow-[0_0_40px_rgba(168,85,247,0.6)]'
                       : 'bg-[#3a3d45] text-white hover:bg-[#4a4d55]'

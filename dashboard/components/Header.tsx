@@ -37,11 +37,11 @@ export function Header() {
         {/* Left section */}
         <div className="flex items-center space-x-8">
           <div className="relative group">
-            <button className="flex items-center space-x-2 glass-light px-3 py-1.5 rounded-lg hover:glass-medium transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-105 active:scale-95">
+            <button className="flex items-center space-x-2 glass-light px-3 py-1.5 rounded-lg hover:glass-medium transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-105 active:scale-95">
               <span className="text-sm text-text-primary">All Teams</span>
-              <ChevronDown className="w-4 h-4 text-text-primary transition-transform duration-300 group-hover:rotate-180" />
+              <ChevronDown className="w-4 h-4 text-text-primary transition-transform duration-200 group-hover:rotate-180" />
             </button>
-            <div className="absolute top-full left-0 mt-2 w-56 rounded-xl border border-white/20 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 bg-[#0F1419]/95 backdrop-blur-sm">
+            <div className="absolute top-full left-0 mt-2 w-56 rounded-xl border border-white/20 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 bg-[#0F1419]/95 backdrop-blur-sm">
               <div className="p-2">
                 <div className="px-3 py-2 text-xs text-text-tertiary uppercase tracking-wider">Teams</div>
                 <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 text-text-primary transition-all">
@@ -73,7 +73,7 @@ export function Header() {
             <input
               type="text"
               placeholder="Search"
-              className="glass-medium border border-white/10 pl-10 pr-4 py-2 rounded-lg text-text-primary placeholder:text-text-tertiary text-sm w-64 focus:border-primary/50 focus:outline-none transition-all"
+              className="glass-medium border border-white/10 pl-10 pr-4 py-2 rounded-lg text-text-primary placeholder:text-text-tertiary text-sm w-64 focus:border-primary/50 focus:outline-none transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
             />
           </div>
 
@@ -94,10 +94,10 @@ export function Header() {
                   <div className="text-xs text-text-tertiary">{user.email}</div>
                 </div>
               )}
-              <ChevronDown className="w-4 h-4 text-text-secondary transition-transform duration-300 group-hover:rotate-180" />
+              <ChevronDown className="w-4 h-4 text-text-secondary transition-transform duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover:rotate-180" />
             </button>
             
-            <div className="absolute top-full right-0 mt-2 w-64 rounded-xl border border-white/20 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 bg-[#0F1419]/95 backdrop-blur-sm">
+            <div className="absolute top-full right-0 mt-2 w-64 rounded-xl border border-white/20 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] z-50 bg-[#0F1419]/95 backdrop-blur-sm">
               <div className="p-2">
                 <div className="px-3 py-3 border-b border-white/10">
                   <div className="font-semibold text-text-primary">{user?.fullName || user?.username}</div>

@@ -33,8 +33,8 @@ export function ProjectCard({ id, name, team, status, risk_level, score, onClick
             )}
           </div>
         </div>
-        <button className="p-1 hover:bg-white/10 rounded transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-110 active:scale-95">
-          <MoreVertical className="w-4 h-4 text-text-tertiary transition-transform duration-300" />
+        <button className="p-1 hover:bg-white/10 rounded transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-110 active:scale-95">
+          <MoreVertical className="w-4 h-4 text-text-tertiary transition-transform duration-200" />
         </button>
       </div>
 
@@ -65,7 +65,7 @@ export function ProjectCard({ id, name, team, status, risk_level, score, onClick
           <div className="h-2 glass-subtle rounded-full overflow-hidden">
             <div
               className={cn(
-                'h-full rounded-full shadow-[0_0_10px] transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]',
+                'h-full rounded-full shadow-[0_0_10px] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
                 score >= 80 ? 'bg-[#00D66B]' : score >= 60 ? 'bg-[#8098F9]' : 'bg-yellow-500'
               )}
               style={{ width: `${score}%` }}

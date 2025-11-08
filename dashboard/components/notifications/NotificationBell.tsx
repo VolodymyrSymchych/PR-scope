@@ -76,9 +76,9 @@ export function NotificationBell() {
     <div className="relative">
       <button
         onClick={() => setShowNotifications(!showNotifications)}
-        className="relative p-2 rounded-lg glass-subtle hover:glass-light transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-110 active:scale-95"
+        className="relative p-2 rounded-lg glass-subtle hover:glass-light transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-110 active:scale-95"
       >
-        <Bell className="w-5 h-5 text-text-secondary transition-transform duration-300 hover:rotate-12" />
+        <Bell className="w-5 h-5 text-text-secondary transition-transform duration-200 hover:rotate-12" />
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 w-5 h-5 bg-danger rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg animate-pulse">
             {unreadCount > 9 ? '9+' : unreadCount}

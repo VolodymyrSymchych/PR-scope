@@ -88,7 +88,7 @@ export default function AddFriendsPage() {
           {results.map((user) => (
             <div
               key={user.id}
-              className="glass-medium rounded-2xl p-6 border border-white/10 flex items-center justify-between hover:glass-light transition-all duration-300"
+              className="glass-medium rounded-2xl p-6 border border-white/10 flex items-center justify-between hover:glass-light transition-all duration-200"
             >
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-[#8098F9] flex items-center justify-center text-white font-semibold shadow-[0_0_20px_rgba(128,152,249,0.5)]">

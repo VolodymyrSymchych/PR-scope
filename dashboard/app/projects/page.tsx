@@ -64,7 +64,7 @@ export default function ProjectsPage() {
             className="w-full pl-10 pr-4 py-3 rounded-lg glass-medium border border-white/10 focus:outline-none focus:border-primary/50 text-text-primary placeholder:text-text-tertiary transition-all"
           />
         </div>
-        <button className="glass-light flex items-center space-x-2 px-4 py-3 rounded-lg hover:glass-medium transition-all duration-300 hover:scale-105">
+        <button className="glass-light flex items-center space-x-2 px-4 py-3 rounded-lg hover:glass-medium transition-all duration-200 hover:scale-105">
           <Filter className="w-5 h-5 text-text-secondary" />
           <span className="text-text-primary">Filters</span>
         </button>

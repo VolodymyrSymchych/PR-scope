@@ -42,19 +42,19 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-40 h-screen glass-medium border-r border-white/10 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+        'fixed left-0 top-0 z-40 h-screen glass-medium border-r border-white/10 transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]',
         isExpanded ? 'w-64' : 'w-20'
       )}
     >
       <div className="flex h-full flex-col py-6">
         {/* Logo Section */}
-        <div className={cn('px-4 mb-8 transition-all duration-300', isExpanded ? 'px-6' : 'px-4')}>
+        <div className={cn('px-4 mb-8 transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]', isExpanded ? 'px-6' : 'px-4')}>
           <div className={cn('flex items-center gap-3', isExpanded ? 'justify-between' : 'justify-center')}>
             <Logo variant={isExpanded ? "default" : "icon"} showText={false} />
             <button
               onClick={toggleSidebar}
               className={cn(
-                'p-2 rounded-lg glass-light hover:glass-medium transition-all duration-300 hover:scale-110 active:scale-95 flex-shrink-0',
+                'p-2 rounded-lg glass-light hover:glass-medium transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-110 active:scale-95 flex-shrink-0',
                 !isExpanded && 'mx-auto'
               )}
               title={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
@@ -77,7 +77,7 @@ export function Sidebar() {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  'flex items-center rounded-xl transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group',
+                  'flex items-center rounded-xl transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] group',
                   isExpanded ? 'px-4 py-3 gap-3' : 'justify-center w-14 h-14 mx-auto',
                   isActive
                     ? 'glass-light text-white border border-[#8098F9]/40 shadow-[0_0_20px_rgba(128,152,249,0.5)] scale-105'

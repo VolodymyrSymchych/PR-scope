@@ -53,7 +53,7 @@ export default function SignInPage() {
         <div className="relative z-10 w-full max-w-md my-auto">
           {/* Logo/Title */}
           <div className="text-center mb-8">
-            <div className="flex justify-center mb-10">
+            <div className="flex justify-center mb-20">
               <Logo variant="default" showText={false} />
             </div>
             <h1 className="text-4xl font-bold gradient-text mb-2">Welcome Back</h1>

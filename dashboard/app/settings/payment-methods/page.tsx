@@ -79,7 +79,7 @@ export default function PaymentMethodsPage() {
         </div>
 
         {/* Add New Payment Method */}
-        <button className="w-full glass-medium rounded-2xl p-6 border border-dashed border-white/20 hover:glass-light transition-all duration-300 hover:scale-[1.01]">
+        <button className="w-full glass-medium rounded-2xl p-6 border border-dashed border-white/20 hover:glass-light transition-all duration-200 hover:scale-[1.01]">
           <div className="flex items-center justify-center gap-3 text-text-primary">
             <Plus className="w-6 h-6" />
             <span className="font-semibold">Add New Payment Method</span>
@@ -91,7 +91,7 @@ export default function PaymentMethodsPage() {
           {paymentMethods.map((method) => (
             <div
               key={method.id}
-              className="glass-medium rounded-2xl p-6 border border-white/10 hover:glass-light transition-all duration-300"
+              className="glass-medium rounded-2xl p-6 border border-white/10 hover:glass-light transition-all duration-200"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">

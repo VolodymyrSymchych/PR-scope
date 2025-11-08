@@ -70,7 +70,7 @@ export function RealTimeProgress({ projectId, onComplete }: RealTimeProgressProp
         </div>
         <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
           <div
-            className="h-full bg-primary-500 rounded-full transition-all duration-500"
+            className="h-full bg-primary-500 rounded-full transition-all duration-300"
             style={{ width: `${overallProgress}%` }}
           ></div>
         </div>
@@ -99,7 +99,7 @@ export function RealTimeProgress({ projectId, onComplete }: RealTimeProgressProp
                   <div className="mt-1 h-1.5 w-32 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                     <div
                       className={cn(
-                        'h-full rounded-full transition-all duration-500',
+                        'h-full rounded-full transition-all duration-300',
                         stage.status === 'completed'
                           ? 'bg-green-500'
                           : stage.status === 'in_progress'
