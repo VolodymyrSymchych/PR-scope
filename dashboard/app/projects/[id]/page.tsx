@@ -13,6 +13,8 @@ import {
   TrendingUp,
   FileText,
   Download,
+  Share2,
+  RefreshCw,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn, getRiskColor, formatDate } from '@/lib/utils';
@@ -72,7 +74,7 @@ export default function ProjectDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -80,65 +82,96 @@ export default function ProjectDetailPage() {
   if (!project) {
     return (
       <div className="text-center py-12">
-        <AlertTriangle className="w-12 h-12 text-gray-300 dark:text-gray-700 mx-auto mb-3" />
-        <p className="text-gray-500 dark:text-gray-400">Project not found</p>
-        <button
-          onClick={() => router.back()}
-          className="mt-4 text-primary-500 hover:text-primary-600"
-        >
-          Go Back
-        </button>
+        <div className="glass-medium rounded-2xl p-12 max-w-md mx-auto border border-white/10">
+          <AlertTriangle className="w-16 h-16 text-warning mx-auto mb-4" />
+          <h3 className="text-xl font-bold text-text-primary mb-2">Project not found</h3>
+          <p className="text-text-secondary mb-6">The project you're looking for doesn't exist or has been removed.</p>
+          <button
+            onClick={() => router.back()}
+            className="glass-light px-6 py-2.5 rounded-lg hover:glass-medium transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-105 active:scale-95 text-text-primary font-medium"
+          >
+            Go Back
+          </button>
+        </div>
       </div>
     );
   }
 
+  const getRiskColorClass = (risk: string) => {
+    switch (risk?.toLowerCase()) {
+      case 'low':
+        return 'text-success bg-success/10 border-success/20';
+      case 'medium':
+        return 'text-warning bg-warning/10 border-warning/20';
+      case 'high':
+        return 'text-danger bg-danger/10 border-danger/20';
+      default:
+        return 'text-text-secondary bg-white/5 border-white/10';
+    }
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'text-success';
+    if (score >= 60) return 'text-primary';
+    if (score >= 40) return 'text-warning';
+    return 'text-danger';
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fadeIn">
       {/* Header */}
-      <div>
+      <div className="glass-medium rounded-2xl p-6 border border-white/10">
         <button
           onClick={() => router.back()}
-          className="flex items-center space-x-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 mb-4"
+          className="flex items-center space-x-2 text-text-secondary hover:text-text-primary mb-6 transition-colors duration-200 group"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Projects</span>
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform duration-200" />
+          <span className="font-medium">Back to Projects</span>
         </button>
+
         <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold text-text-primary mb-3">
               {project.project.name}
             </h1>
-            <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
-              <span className="flex items-center space-x-1">
+            <div className="flex flex-wrap items-center gap-4 text-sm text-text-secondary">
+              <span className="flex items-center space-x-2 glass-subtle px-3 py-1.5 rounded-lg">
                 <Calendar className="w-4 h-4" />
                 <span>{formatDate(project.project.created_at)}</span>
               </span>
-              <span className="flex items-center space-x-1">
+              <span className="flex items-center space-x-2 glass-subtle px-3 py-1.5 rounded-lg">
                 <Building className="w-4 h-4" />
                 <span>{project.project.industry}</span>
               </span>
+              <span className={cn(
+                'px-3 py-1.5 rounded-lg font-medium text-xs uppercase tracking-wider border',
+                getRiskColorClass(project.project.risk_level)
+              )}>
+                {project.project.risk_level} Risk
+              </span>
             </div>
           </div>
+
           <button
             onClick={downloadReport}
-            className="flex items-center space-x-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+            className="flex items-center space-x-2 px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(128,152,249,0.3)] hover:shadow-[0_0_30px_rgba(128,152,249,0.5)]"
           >
             <Download className="w-4 h-4" />
-            <span>Download Report</span>
+            <span className="font-medium">Download Report</span>
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 dark:border-gray-800">
-        <div className="flex space-x-8">
+      <div className="glass-medium rounded-2xl border border-white/10 overflow-hidden">
+        <div className="flex border-b border-white/10">
           <button
             onClick={() => setActiveTab('overview')}
             className={cn(
-              'pb-4 border-b-2 font-medium transition-colors',
+              'flex-1 px-6 py-4 font-semibold transition-all duration-200',
               activeTab === 'overview'
-                ? 'border-primary-500 text-primary-500'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                ? 'text-primary bg-primary/5 border-b-2 border-primary'
+                : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
             )}
           >
             Overview
@@ -146,176 +179,199 @@ export default function ProjectDetailPage() {
           <button
             onClick={() => setActiveTab('report')}
             className={cn(
-              'pb-4 border-b-2 font-medium transition-colors',
+              'flex-1 px-6 py-4 font-semibold transition-all duration-200',
               activeTab === 'report'
-                ? 'border-primary-500 text-primary-500'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                ? 'text-primary bg-primary/5 border-b-2 border-primary'
+                : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
             )}
           >
             Full Report
           </button>
         </div>
-      </div>
 
-      {/* Content */}
-      {activeTab === 'overview' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Score Card */}
-            <div className="bg-white dark:bg-card-dark rounded-2xl p-6 border border-gray-100 dark:border-gray-800">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
-                Scope Clarity Score
-              </h3>
-              <div className="flex items-center justify-center">
-                <div className="relative w-48 h-48">
-                  <svg className="w-full h-full transform -rotate-90">
-                    <circle
-                      cx="96"
-                      cy="96"
-                      r="88"
-                      stroke="currentColor"
-                      strokeWidth="12"
-                      fill="none"
-                      className="text-gray-200 dark:text-gray-700"
-                    />
-                    <circle
-                      cx="96"
-                      cy="96"
-                      r="88"
-                      stroke="currentColor"
-                      strokeWidth="12"
-                      fill="none"
-                      strokeDasharray={`${2 * Math.PI * 88}`}
-                      strokeDashoffset={`${2 * Math.PI * 88 * (1 - (project.project.score || 0) / 100)}`}
-                      className={cn(
-                        project.project.score >= 80
-                          ? 'text-green-500'
-                          : project.project.score >= 60
-                          ? 'text-blue-500'
-                          : 'text-yellow-500'
-                      )}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <div className="text-5xl font-bold text-gray-900 dark:text-gray-100">
-                      {project.project.score || 0}
+        <div className="p-6">
+          {/* Content */}
+          {activeTab === 'overview' ? (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Main Content */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Score Card */}
+                <div className="glass-light rounded-xl p-8 border border-white/10">
+                  <h3 className="text-xl font-bold text-text-primary mb-6 flex items-center space-x-2">
+                    <TrendingUp className="w-5 h-5 text-primary" />
+                    <span>Scope Clarity Score</span>
+                  </h3>
+
+                  <div className="flex items-center justify-center py-6">
+                    <div className="relative w-56 h-56">
+                      {/* Outer glow ring */}
+                      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 to-transparent blur-xl"></div>
+
+                      {/* SVG Circle */}
+                      <svg className="w-full h-full transform -rotate-90 relative z-10">
+                        <circle
+                          cx="112"
+                          cy="112"
+                          r="100"
+                          stroke="currentColor"
+                          strokeWidth="14"
+                          fill="none"
+                          className="text-white/5"
+                        />
+                        <circle
+                          cx="112"
+                          cy="112"
+                          r="100"
+                          stroke="currentColor"
+                          strokeWidth="14"
+                          fill="none"
+                          strokeDasharray={`${2 * Math.PI * 100}`}
+                          strokeDashoffset={`${2 * Math.PI * 100 * (1 - (project.project.score || 0) / 100)}`}
+                          className={cn(
+                            'transition-all duration-1000 ease-out',
+                            getScoreColor(project.project.score || 0)
+                          )}
+                          strokeLinecap="round"
+                        />
+                      </svg>
+
+                      {/* Score Display */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <div className={cn(
+                          'text-6xl font-bold mb-1',
+                          getScoreColor(project.project.score || 0)
+                        )}>
+                          {project.project.score || 0}
+                        </div>
+                        <div className="text-sm text-text-tertiary font-medium">out of 100</div>
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">out of 100</div>
+                  </div>
+                </div>
+
+                {/* Analysis Stages */}
+                <div className="glass-light rounded-xl p-6 border border-white/10">
+                  <h3 className="text-lg font-bold text-text-primary mb-5 flex items-center space-x-2">
+                    <CheckCircle className="w-5 h-5 text-success" />
+                    <span>Analysis Stages</span>
+                  </h3>
+                  <div className="space-y-3">
+                    {Object.keys(project.analysis.results).map((stage, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-4 rounded-lg glass-subtle border border-white/5 hover:border-success/20 transition-all duration-200 group"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
+                            <CheckCircle className="w-4 h-4 text-success" />
+                          </div>
+                          <span className="font-medium text-text-primary">
+                            {stage.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </span>
+                        </div>
+                        <span className="text-xs font-semibold text-success uppercase tracking-wider">Completed</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
-              <div className="mt-6 flex items-center justify-center">
-                <span className={cn('px-4 py-2 rounded-full font-medium', getRiskColor(project.project.risk_level))}>
-                  Risk Level: {project.project.risk_level}
-                </span>
-              </div>
-            </div>
 
-            {/* Analysis Stages */}
-            <div className="bg-white dark:bg-card-dark rounded-2xl p-6 border border-gray-100 dark:border-gray-800">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
-                Analysis Stages
-              </h3>
-              <div className="space-y-3">
-                {Object.keys(project.analysis.results).map((stage, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <CheckCircle className="w-5 h-5 text-green-500" />
-                      <span className="font-medium text-gray-900 dark:text-gray-100">
-                        {stage.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              {/* Sidebar */}
+              <div className="space-y-6">
+                {/* Project Details */}
+                <div className="glass-light rounded-xl p-6 border border-white/10">
+                  <h3 className="text-lg font-bold text-text-primary mb-5 flex items-center space-x-2">
+                    <FileText className="w-5 h-5 text-primary" />
+                    <span>Project Details</span>
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="group">
+                      <div className="flex items-center space-x-2 text-text-tertiary mb-2">
+                        <FileText className="w-4 h-4" />
+                        <span className="text-xs font-medium uppercase tracking-wider">Project Type</span>
+                      </div>
+                      <p className="font-semibold text-text-primary ml-6 group-hover:text-primary transition-colors duration-200">
+                        {project.project.type}
+                      </p>
+                    </div>
+
+                    <div className="h-px bg-white/5"></div>
+
+                    <div className="group">
+                      <div className="flex items-center space-x-2 text-text-tertiary mb-2">
+                        <Users className="w-4 h-4" />
+                        <span className="text-xs font-medium uppercase tracking-wider">Team Size</span>
+                      </div>
+                      <p className="font-semibold text-text-primary ml-6 group-hover:text-primary transition-colors duration-200">
+                        {project.project.team_size}
+                      </p>
+                    </div>
+
+                    <div className="h-px bg-white/5"></div>
+
+                    <div className="group">
+                      <div className="flex items-center space-x-2 text-text-tertiary mb-2">
+                        <Clock className="w-4 h-4" />
+                        <span className="text-xs font-medium uppercase tracking-wider">Timeline</span>
+                      </div>
+                      <p className="font-semibold text-text-primary ml-6 group-hover:text-primary transition-colors duration-200">
+                        {project.project.timeline}
+                      </p>
+                    </div>
+
+                    <div className="h-px bg-white/5"></div>
+
+                    <div className="group">
+                      <div className="flex items-center space-x-2 text-text-tertiary mb-2">
+                        <Building className="w-4 h-4" />
+                        <span className="text-xs font-medium uppercase tracking-wider">Industry</span>
+                      </div>
+                      <p className="font-semibold text-text-primary ml-6 group-hover:text-primary transition-colors duration-200">
+                        {project.project.industry}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="glass-light rounded-xl p-6 border border-white/10">
+                  <h3 className="text-lg font-bold text-text-primary mb-4">
+                    Quick Actions
+                  </h3>
+                  <div className="space-y-2">
+                    <button className="w-full flex items-center space-x-3 px-4 py-3 text-left rounded-lg glass-subtle hover:glass-medium border border-white/5 hover:border-primary/20 transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-105 active:scale-95 group">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors duration-200">
+                        <RefreshCw className="w-4 h-4 text-primary" />
+                      </div>
+                      <span className="text-sm font-semibold text-text-primary group-hover:text-primary transition-colors duration-200">
+                        Re-analyze Project
                       </span>
-                    </div>
-                    <span className="text-sm text-green-600 dark:text-green-400">Completed</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+                    </button>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Project Details */}
-            <div className="bg-white dark:bg-card-dark rounded-2xl p-6 border border-gray-100 dark:border-gray-800">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
-                Project Details
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400 mb-1">
-                    <FileText className="w-4 h-4" />
-                    <span className="text-sm">Project Type</span>
+                    <button className="w-full flex items-center space-x-3 px-4 py-3 text-left rounded-lg glass-subtle hover:glass-medium border border-white/5 hover:border-primary/20 transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-105 active:scale-95 group">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors duration-200">
+                        <Share2 className="w-4 h-4 text-primary" />
+                      </div>
+                      <span className="text-sm font-semibold text-text-primary group-hover:text-primary transition-colors duration-200">
+                        Share with Team
+                      </span>
+                    </button>
                   </div>
-                  <p className="font-medium text-gray-900 dark:text-gray-100 ml-6">
-                    {project.project.type}
-                  </p>
-                </div>
-                <div>
-                  <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400 mb-1">
-                    <Users className="w-4 h-4" />
-                    <span className="text-sm">Team Size</span>
-                  </div>
-                  <p className="font-medium text-gray-900 dark:text-gray-100 ml-6">
-                    {project.project.team_size}
-                  </p>
-                </div>
-                <div>
-                  <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400 mb-1">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-sm">Timeline</span>
-                  </div>
-                  <p className="font-medium text-gray-900 dark:text-gray-100 ml-6">
-                    {project.project.timeline}
-                  </p>
-                </div>
-                <div>
-                  <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400 mb-1">
-                    <Building className="w-4 h-4" />
-                    <span className="text-sm">Industry</span>
-                  </div>
-                  <p className="font-medium text-gray-900 dark:text-gray-100 ml-6">
-                    {project.project.industry}
-                  </p>
                 </div>
               </div>
             </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white dark:bg-card-dark rounded-2xl p-6 border border-gray-100 dark:border-gray-800">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
-                Quick Actions
-              </h3>
-              <div className="space-y-2">
-                <button className="w-full flex items-center space-x-2 px-4 py-2 text-left rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                  <TrendingUp className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Re-analyze Project
-                  </span>
-                </button>
-                <button className="w-full flex items-center space-x-2 px-4 py-2 text-left rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                  <Users className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Share with Team
-                  </span>
-                </button>
+          ) : (
+            /* Full Report Tab */
+            <div className="glass-light rounded-xl p-8 border border-white/10">
+              <div className="prose prose-invert max-w-none">
+                <pre className="whitespace-pre-wrap font-sans text-sm text-text-secondary leading-relaxed bg-black/20 p-6 rounded-lg border border-white/5">
+                  {project.analysis.report}
+                </pre>
               </div>
             </div>
-          </div>
+          )}
         </div>
-      ) : (
-        /* Full Report Tab */
-        <div className="bg-white dark:bg-card-dark rounded-2xl p-8 border border-gray-100 dark:border-gray-800">
-          <div className="prose dark:prose-invert max-w-none">
-            <pre className="whitespace-pre-wrap font-sans text-sm text-gray-700 dark:text-gray-300">
-              {project.analysis.report}
-            </pre>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

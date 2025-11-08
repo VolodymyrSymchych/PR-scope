@@ -24,6 +24,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   receivedFriendRequests: many(friendships, { relationName: 'receiver' }),
   payments: many(payments),
   emailVerifications: many(emailVerifications),
+  tasks: many(tasks),
+  timeEntries: many(timeEntries),
 }));
 
 export const projects = pgTable('projects', {
@@ -34,6 +36,9 @@ export const projects = pgTable('projects', {
   industry: varchar('industry', { length: 100 }),
   teamSize: varchar('team_size', { length: 50 }),
   timeline: varchar('timeline', { length: 100 }),
+  budget: integer('budget'),
+  startDate: timestamp('start_date'),
+  endDate: timestamp('end_date'),
   score: integer('score').default(0),
   riskLevel: varchar('risk_level', { length: 50 }),
   status: varchar('status', { length: 50 }).default('in_progress').notNull(),
@@ -49,6 +54,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
     references: [users.id],
   }),
   teamProjects: many(teamProjects),
+  tasks: many(tasks),
 }));
 
 export const teams = pgTable('teams', {
@@ -188,6 +194,60 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
   }),
 }));
 
+export const tasks = pgTable('tasks', {
+  id: serial('id').primaryKey(),
+  projectId: integer('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description'),
+  assignee: varchar('assignee', { length: 100 }),
+  dueDate: timestamp('due_date'),
+  status: varchar('status', { length: 50 }).default('todo').notNull(),
+  priority: varchar('priority', { length: 50 }).default('medium').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [tasks.projectId],
+    references: [projects.id],
+  }),
+  user: one(users, {
+    fields: [tasks.userId],
+    references: [users.id],
+  }),
+  timeEntries: many(timeEntries),
+}));
+
+export const timeEntries = pgTable('time_entries', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  taskId: integer('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+  projectId: integer('project_id').references(() => projects.id, { onDelete: 'set null' }),
+  clockIn: timestamp('clock_in').notNull(),
+  clockOut: timestamp('clock_out'),
+  duration: integer('duration'), // in minutes
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const timeEntriesRelations = relations(timeEntries, ({ one }) => ({
+  user: one(users, {
+    fields: [timeEntries.userId],
+    references: [users.id],
+  }),
+  task: one(tasks, {
+    fields: [timeEntries.taskId],
+    references: [tasks.id],
+  }),
+  project: one(projects, {
+    fields: [timeEntries.projectId],
+    references: [projects.id],
+  }),
+}));
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Project = typeof projects.$inferSelect;
@@ -204,3 +264,7 @@ export type EmailVerification = typeof emailVerifications.$inferSelect;
 export type InsertEmailVerification = typeof emailVerifications.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = typeof notifications.$inferInsert;
+export type Task = typeof tasks.$inferSelect;
+export type InsertTask = typeof tasks.$inferInsert;
+export type TimeEntry = typeof timeEntries.$inferSelect;
+export type InsertTimeEntry = typeof timeEntries.$inferInsert;

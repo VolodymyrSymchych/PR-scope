@@ -1,4 +1,4 @@
-import { eq, and, or, desc } from 'drizzle-orm';
+import { eq, and, or, desc, isNull } from 'drizzle-orm';
 import { db } from './db';
 import {
   users,
@@ -10,6 +10,8 @@ import {
   payments,
   emailVerifications,
   notifications,
+  tasks,
+  timeEntries,
   type User,
   type InsertUser,
   type Project,
@@ -26,6 +28,10 @@ import {
   type InsertEmailVerification,
   type Notification,
   type InsertNotification,
+  type Task,
+  type InsertTask,
+  type TimeEntry,
+  type InsertTimeEntry,
 } from '../shared/schema';
 
 export class DatabaseStorage {
@@ -273,6 +279,117 @@ export class DatabaseStorage {
         eq(projects.userId, userId)
       ));
     return !!ownedProject;
+  }
+
+  // Tasks
+  async getTasks(userId?: number, projectId?: number): Promise<Task[]> {
+    if (userId && projectId) {
+      return await db
+        .select()
+        .from(tasks)
+        .where(and(eq(tasks.projectId, projectId), eq(tasks.userId, userId)))
+        .orderBy(desc(tasks.createdAt));
+    } else if (projectId) {
+      return await db
+        .select()
+        .from(tasks)
+        .where(eq(tasks.projectId, projectId))
+        .orderBy(desc(tasks.createdAt));
+    } else if (userId) {
+      return await db
+        .select()
+        .from(tasks)
+        .where(eq(tasks.userId, userId))
+        .orderBy(desc(tasks.createdAt));
+    } else {
+      return await db
+        .select()
+        .from(tasks)
+        .orderBy(desc(tasks.createdAt));
+    }
+  }
+
+  async getTask(taskId: number): Promise<Task | undefined> {
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+    return task;
+  }
+
+  async createTask(data: InsertTask): Promise<Task> {
+    const [task] = await db.insert(tasks).values(data).returning();
+    return task;
+  }
+
+  async updateTask(taskId: number, data: Partial<InsertTask>): Promise<Task | undefined> {
+    const [task] = await db
+      .update(tasks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(tasks.id, taskId))
+      .returning();
+    return task;
+  }
+
+  async deleteTask(taskId: number): Promise<void> {
+    await db.delete(tasks).where(eq(tasks.id, taskId));
+  }
+
+  // Time Entries
+  async getTimeEntries(userId?: number, taskId?: number): Promise<TimeEntry[]> {
+    if (userId && taskId) {
+      return await db
+        .select()
+        .from(timeEntries)
+        .where(and(eq(timeEntries.taskId, taskId), eq(timeEntries.userId, userId)))
+        .orderBy(desc(timeEntries.createdAt));
+    } else if (taskId) {
+      return await db
+        .select()
+        .from(timeEntries)
+        .where(eq(timeEntries.taskId, taskId))
+        .orderBy(desc(timeEntries.createdAt));
+    } else if (userId) {
+      return await db
+        .select()
+        .from(timeEntries)
+        .where(eq(timeEntries.userId, userId))
+        .orderBy(desc(timeEntries.createdAt));
+    } else {
+      return await db
+        .select()
+        .from(timeEntries)
+        .orderBy(desc(timeEntries.createdAt));
+    }
+  }
+
+  async getTimeEntry(entryId: number): Promise<TimeEntry | undefined> {
+    const [entry] = await db.select().from(timeEntries).where(eq(timeEntries.id, entryId));
+    return entry;
+  }
+
+  async createTimeEntry(data: InsertTimeEntry): Promise<TimeEntry> {
+    const [entry] = await db.insert(timeEntries).values(data).returning();
+    return entry;
+  }
+
+  async updateTimeEntry(entryId: number, data: Partial<InsertTimeEntry>): Promise<TimeEntry | undefined> {
+    const [entry] = await db
+      .update(timeEntries)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(timeEntries.id, entryId))
+      .returning();
+    return entry;
+  }
+
+  async getActiveTimeEntry(userId: number): Promise<TimeEntry | undefined> {
+    const entries = await db
+      .select()
+      .from(timeEntries)
+      .where(and(
+        eq(timeEntries.userId, userId),
+        isNull(timeEntries.clockOut)
+      ))
+      .orderBy(desc(timeEntries.createdAt))
+      .limit(1);
+    return entries[0];
   }
 }
 

@@ -5,22 +5,39 @@ import { Plus, Filter, Search, Calendar, User } from 'lucide-react';
 import axios from 'axios';
 import { Task } from '@/lib/tasks-api';
 
+interface Project {
+  id: number;
+  name: string;
+}
+
 export default function TasksPage() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewTaskForm, setShowNewTaskForm] = useState(false);
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
-    assignee: 'AR',
+    project_id: '' as string | number,
+    assignee: '',
     due_date: '',
     priority: 'medium' as 'low' | 'medium' | 'high',
     status: 'todo' as 'todo' | 'in_progress' | 'done'
   });
 
   useEffect(() => {
+    loadProjects();
     loadTasks();
   }, []);
+
+  const loadProjects = async () => {
+    try {
+      const response = await axios.get('/api/projects');
+      setProjects(response.data.projects || []);
+    } catch (error) {
+      console.error('Failed to load projects:', error);
+    }
+  };
 
   const loadTasks = async () => {
     try {
@@ -36,11 +53,16 @@ export default function TasksPage() {
   const createTask = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await axios.post('/api/tasks', newTask);
+      const taskData = {
+        ...newTask,
+        project_id: newTask.project_id ? parseInt(newTask.project_id as string) : undefined,
+      };
+      await axios.post('/api/tasks', taskData);
       setNewTask({
         title: '',
         description: '',
-        assignee: 'AR',
+        project_id: '',
+        assignee: '',
         due_date: '',
         priority: 'medium',
         status: 'todo'
@@ -49,6 +71,7 @@ export default function TasksPage() {
       loadTasks();
     } catch (error) {
       console.error('Failed to create task:', error);
+      alert('Failed to create task. Please try again.');
     }
   };
 
@@ -70,9 +93,9 @@ export default function TasksPage() {
     }
   };
 
-  const todoTasks = tasks.filter(t => t.status === 'todo');
-  const inProgressTasks = tasks.filter(t => t.status === 'in_progress');
-  const doneTasks = tasks.filter(t => t.status === 'done');
+  const todoTasks = tasks.filter(t => t.status === 'todo' || t.status === 'Todo');
+  const inProgressTasks = tasks.filter(t => t.status === 'in_progress' || t.status === 'In Progress');
+  const doneTasks = tasks.filter(t => t.status === 'done' || t.status === 'Done');
 
   if (loading) {
     return (
@@ -103,18 +126,18 @@ export default function TasksPage() {
 
       {/* New Task Form */}
       {showNewTaskForm && (
-        <div className="bg-surface dark:bg-surface-elevated rounded-2xl p-6 border border-border">
+        <div className="glass-medium rounded-2xl p-6 border border-white/10">
           <form onSubmit={createTask} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-text-primary mb-2">
-                Title
+                Title *
               </label>
               <input
                 type="text"
                 required
                 value={newTask.title}
                 onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                className="w-full px-4 py-3 rounded-lg bg-background dark:bg-surface border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div>
@@ -125,10 +148,27 @@ export default function TasksPage() {
                 rows={3}
                 value={newTask.description}
                 onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                className="w-full px-4 py-3 rounded-lg bg-background dark:bg-surface border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">
+                  Project
+                </label>
+                <select
+                  value={newTask.project_id}
+                  onChange={(e) => setNewTask({ ...newTask, project_id: e.target.value })}
+                  className="w-full px-4 py-3 rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">No Project</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-text-primary mb-2">
                   Priority
@@ -136,13 +176,15 @@ export default function TasksPage() {
                 <select
                   value={newTask.priority}
                   onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as any })}
-                  className="w-full px-4 py-3 rounded-lg bg-background dark:bg-surface border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full px-4 py-3 rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
                 </select>
               </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-text-primary mb-2">
                   Assignee
@@ -151,7 +193,7 @@ export default function TasksPage() {
                   type="text"
                   value={newTask.assignee}
                   onChange={(e) => setNewTask({ ...newTask, assignee: e.target.value })}
-                  className="w-full px-4 py-3 rounded-lg bg-background dark:bg-surface border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full px-4 py-3 rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder="Initials (e.g., AR)"
                 />
               </div>
@@ -163,7 +205,7 @@ export default function TasksPage() {
                   type="date"
                   value={newTask.due_date}
                   onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
-                  className="w-full px-4 py-3 rounded-lg bg-background dark:bg-surface border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full px-4 py-3 rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
             </div>
@@ -271,22 +313,19 @@ export default function TasksPage() {
 }
 
 interface TaskCardProps {
-  task: Task;
+  task: any;
   onStatusChange: (taskId: number, status: 'todo' | 'in_progress' | 'done') => void;
   getPriorityColor: (priority: string) => string;
 }
 
 function TaskCard({ task, onStatusChange, getPriorityColor }: TaskCardProps) {
-  const completedSubtasks = task.subtasks.filter(st => st.completed).length;
-  const totalSubtasks = task.subtasks.length;
-
   return (
     <div className="glass-medium rounded-xl p-4 border border-white/10 hover:glass-light transition-all duration-200 hover:scale-[1.02]">
       <div className="space-y-3">
         <div className="flex items-start justify-between">
           <h4 className="font-semibold text-text-primary">{task.title}</h4>
-          <span className={`text-xs px-2 py-1 rounded-full ${getPriorityColor(task.priority)}`}>
-            {task.priority}
+          <span className={`text-xs px-2 py-1 rounded-full ${getPriorityColor(task.priority || 'medium')}`}>
+            {task.priority || 'medium'}
           </span>
         </div>
 
@@ -296,22 +335,20 @@ function TaskCard({ task, onStatusChange, getPriorityColor }: TaskCardProps) {
           </p>
         )}
 
-        {totalSubtasks > 0 && (
-          <div className="text-xs text-text-tertiary">
-            {completedSubtasks}/{totalSubtasks} subtasks completed
-          </div>
-        )}
-
         <div className="flex items-center justify-between text-sm">
-          <div className="flex items-center space-x-2 text-text-tertiary">
-            <Calendar className="w-4 h-4" />
-            <span>{new Date(task.due_date).toLocaleDateString()}</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-xs font-semibold">
-              {task.assignee}
+          {(task.dueDate || task.due_date) && (
+            <div className="flex items-center space-x-2 text-text-tertiary">
+              <Calendar className="w-4 h-4" />
+              <span>{new Date((task.dueDate || task.due_date) as string).toLocaleDateString()}</span>
             </div>
-          </div>
+          )}
+          {task.assignee && (
+            <div className="flex items-center space-x-2">
+              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-xs font-semibold">
+                {task.assignee}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Status change buttons */}

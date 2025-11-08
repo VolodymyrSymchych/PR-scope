@@ -14,29 +14,41 @@ export default function AddFriendsPage() {
     if (!searchQuery.trim()) return;
     
     setSearching(true);
-    // Simulate API call
-    setTimeout(() => {
-      setResults([
-        { id: 1, username: 'john_doe', fullName: 'John Doe', email: 'john@example.com' },
-        { id: 2, username: 'jane_smith', fullName: 'Jane Smith', email: 'jane@example.com' },
-      ]);
+    try {
+      // Search by email or username
+      const response = await fetch(`/api/users/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      if (response.ok) {
+        const data = await response.json();
+        setResults(data.users || []);
+      } else {
+        setResults([]);
+      }
+    } catch (error) {
+      console.error('Search failed:', error);
+      setResults([]);
+    } finally {
       setSearching(false);
-    }, 1000);
+    }
   };
 
-  const sendFriendRequest = async (userId: number) => {
+  const sendFriendRequest = async (userEmail: string) => {
     try {
-      const response = await fetch('/api/friends/send', {
+      const response = await fetch('/api/friends', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ receiverId: userId }),
+        body: JSON.stringify({ receiverEmail: userEmail }),
       });
 
       if (response.ok) {
         alert('Friend request sent!');
+        setResults(results.filter(u => u.email !== userEmail));
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to send friend request');
       }
     } catch (error) {
       console.error('Failed to send friend request:', error);
+      alert('Failed to send friend request');
     }
   };
 
@@ -101,7 +113,7 @@ export default function AddFriendsPage() {
                 </div>
               </div>
               <button
-                onClick={() => sendFriendRequest(user.id)}
+                onClick={() => sendFriendRequest(user.email)}
                 className="glass-button flex items-center gap-2 px-4 py-2 rounded-lg font-semibold"
               >
                 <UserPlus className="w-4 h-4" />

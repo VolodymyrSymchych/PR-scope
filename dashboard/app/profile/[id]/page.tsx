@@ -2,38 +2,87 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Mail, Calendar, Award, Users, FolderOpen } from 'lucide-react';
+import { ArrowLeft, Mail, Calendar, Award, Users, FolderOpen, Clock, TrendingUp } from 'lucide-react';
+import axios from 'axios';
 
 interface UserProfile {
   id: number;
   username: string;
-  fullName: string;
+  fullName?: string | null;
   email: string;
   avatarUrl?: string;
   role: string;
   createdAt: string;
 }
 
+interface AttendanceStats {
+  totalHours: number;
+  todayHours: number;
+  weekHours: number;
+  monthHours: number;
+  entries: any[];
+}
+
 export default function ProfilePage() {
   const params = useParams();
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [attendance, setAttendance] = useState<AttendanceStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate fetching user profile
-    setTimeout(() => {
-      setProfile({
-        id: Number(params.id),
-        username: 'vovaexim',
-        fullName: 'Symchych Volodymyr',
-        email: 'vovaexim@gmail.com',
-        role: 'Developer',
-        createdAt: '2024-01-15',
-      });
-      setLoading(false);
-    }, 500);
+    loadProfile();
   }, [params.id]);
+
+  const loadProfile = async () => {
+    try {
+      const userId = Number(params.id);
+      
+      // Load user profile
+      const userRes = await axios.get(`/api/users/${userId}`);
+      if (userRes.data.user) {
+        setProfile(userRes.data.user);
+      }
+
+      // Load attendance
+      const attendanceRes = await axios.get(`/api/attendance?user_id=${userId}`);
+      const entries = attendanceRes.data.entries || [];
+      
+      const totalHours = entries.reduce((sum: number, entry: any) => {
+        return sum + (entry.duration || 0);
+      }, 0) / 60; // Convert minutes to hours
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayHours = entries
+        .filter((entry: any) => new Date(entry.clockIn) >= today)
+        .reduce((sum: number, entry: any) => sum + (entry.duration || 0), 0) / 60;
+
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const weekHours = entries
+        .filter((entry: any) => new Date(entry.clockIn) >= weekAgo)
+        .reduce((sum: number, entry: any) => sum + (entry.duration || 0), 0) / 60;
+
+      const monthAgo = new Date();
+      monthAgo.setDate(monthAgo.getDate() - 30);
+      const monthHours = entries
+        .filter((entry: any) => new Date(entry.clockIn) >= monthAgo)
+        .reduce((sum: number, entry: any) => sum + (entry.duration || 0), 0) / 60;
+
+      setAttendance({
+        totalHours: Math.round(totalHours * 10) / 10,
+        todayHours: Math.round(todayHours * 10) / 10,
+        weekHours: Math.round(weekHours * 10) / 10,
+        monthHours: Math.round(monthHours * 10) / 10,
+        entries,
+      });
+    } catch (error) {
+      console.error('Failed to load profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -54,11 +103,8 @@ export default function ProfilePage() {
   }
 
   const initials = profile.fullName
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
+    ? profile.fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    : profile.username.slice(0, 2).toUpperCase();
 
   return (
     <div className="min-h-screen bg-background px-4 py-8">
@@ -84,7 +130,7 @@ export default function ProfilePage() {
             {/* Info */}
             <div className="flex-1">
               <h1 className="text-3xl font-bold gradient-text mb-2">
-                {profile.fullName}
+                {profile.fullName || profile.username}
               </h1>
               <p className="text-text-secondary text-lg mb-4">@{profile.username}</p>
 
@@ -102,29 +148,18 @@ export default function ProfilePage() {
                   <span>Joined {new Date(profile.createdAt).toLocaleDateString()}</span>
                 </div>
               </div>
-
-              <div className="flex gap-3 mt-6">
-                <button className="glass-button px-6 py-2 rounded-lg font-semibold flex items-center gap-2">
-                  <Users className="w-4 h-4" />
-                  Add Friend
-                </button>
-                <button className="glass-light px-6 py-2 rounded-lg font-semibold hover:glass-medium transition-all flex items-center gap-2 text-text-primary">
-                  <Mail className="w-4 h-4" />
-                  Send Message
-                </button>
-              </div>
             </div>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="glass-medium rounded-2xl p-6 border border-white/10 hover:glass-light transition-all">
             <div className="flex items-center gap-3 mb-2">
               <FolderOpen className="w-5 h-5 text-primary" />
               <span className="text-text-secondary">Projects</span>
             </div>
-            <div className="text-3xl font-bold gradient-text">12</div>
+            <div className="text-3xl font-bold gradient-text">-</div>
           </div>
 
           <div className="glass-medium rounded-2xl p-6 border border-white/10 hover:glass-light transition-all">
@@ -132,17 +167,83 @@ export default function ProfilePage() {
               <Users className="w-5 h-5 text-primary" />
               <span className="text-text-secondary">Friends</span>
             </div>
-            <div className="text-3xl font-bold gradient-text">48</div>
+            <div className="text-3xl font-bold gradient-text">-</div>
           </div>
 
-          <div className="glass-medium rounded-2xl p-6 border border-white/10 hover:glass-light transition-all">
-            <div className="flex items-center gap-3 mb-2">
-              <Award className="w-5 h-5 text-primary" />
-              <span className="text-text-secondary">Analyses</span>
-            </div>
-            <div className="text-3xl font-bold gradient-text">156</div>
-          </div>
+          {/* Attendance Stats */}
+          {attendance && (
+            <>
+              <div className="glass-medium rounded-2xl p-6 border border-white/10 hover:glass-light transition-all">
+                <div className="flex items-center gap-3 mb-2">
+                  <Clock className="w-5 h-5 text-[#00D66B]" />
+                  <span className="text-text-secondary">Today</span>
+                </div>
+                <div className="text-3xl font-bold gradient-text">{attendance.todayHours}h</div>
+              </div>
+
+              <div className="glass-medium rounded-2xl p-6 border border-white/10 hover:glass-light transition-all">
+                <div className="flex items-center gap-3 mb-2">
+                  <TrendingUp className="w-5 h-5 text-purple-400" />
+                  <span className="text-text-secondary">This Week</span>
+                </div>
+                <div className="text-3xl font-bold gradient-text">{attendance.weekHours}h</div>
+              </div>
+            </>
+          )}
         </div>
+
+        {/* Attendance Details */}
+        {attendance && (
+          <div className="glass-medium rounded-2xl p-6 border border-white/10">
+            <h2 className="text-xl font-bold text-text-primary mb-4 flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              Attendance & Time Tracking
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="glass-subtle rounded-xl p-4">
+                <div className="text-sm text-text-tertiary mb-1">Total Hours</div>
+                <div className="text-2xl font-bold text-text-primary">{attendance.totalHours}h</div>
+              </div>
+              <div className="glass-subtle rounded-xl p-4">
+                <div className="text-sm text-text-tertiary mb-1">This Month</div>
+                <div className="text-2xl font-bold text-text-primary">{attendance.monthHours}h</div>
+              </div>
+              <div className="glass-subtle rounded-xl p-4">
+                <div className="text-sm text-text-tertiary mb-1">Total Entries</div>
+                <div className="text-2xl font-bold text-text-primary">{attendance.entries.length}</div>
+              </div>
+            </div>
+
+            {/* Recent Entries */}
+            {attendance.entries.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-text-primary mb-2">Recent Time Entries</h3>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {attendance.entries.slice(0, 10).map((entry: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-3 glass-subtle rounded-lg hover:glass-light transition-all"
+                    >
+                      <div>
+                      <div className="text-sm text-text-primary">
+                        {new Date(entry.clockIn).toLocaleDateString()} {new Date(entry.clockIn).toLocaleTimeString()}
+                      </div>
+                      {entry.clockOut && (
+                        <div className="text-xs text-text-tertiary">
+                          Out: {new Date(entry.clockOut).toLocaleTimeString()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-sm font-medium text-text-primary">
+                      {entry.duration ? `${Math.round(entry.duration / 60 * 10) / 10}h` : 'In progress'}
+                    </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Recent Activity */}
         <div className="glass-medium rounded-2xl p-6 border border-white/10">
@@ -170,4 +271,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-

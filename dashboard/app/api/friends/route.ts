@@ -9,10 +9,29 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const friends = await storage.getFriends(session.userId);
+    const friendships = await storage.getFriends(session.userId);
     const pendingRequests = await storage.getPendingFriendRequests(session.userId);
 
-    return NextResponse.json({ friends, pendingRequests });
+    // Get user details for each friend
+    const friendsWithDetails = await Promise.all(
+      friendships.map(async (friendship) => {
+        const friendId = friendship.senderId === session.userId 
+          ? friendship.receiverId 
+          : friendship.senderId;
+        const friendUser = await storage.getUser(friendId);
+        return {
+          ...friendship,
+          friend: friendUser ? {
+            id: friendUser.id,
+            username: friendUser.username,
+            fullName: friendUser.fullName,
+            email: friendUser.email,
+          } : null,
+        };
+      })
+    );
+
+    return NextResponse.json({ friends: friendsWithDetails, pendingRequests });
   } catch (error: any) {
     console.error('Get friends error:', error);
     return NextResponse.json(

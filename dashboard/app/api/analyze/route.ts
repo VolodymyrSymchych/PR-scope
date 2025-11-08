@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server';
-import { addProject, addAnalysis } from '../data';
+import { getSession } from '@/lib/auth';
+import { storage } from '../../../../server/storage';
 import { ProjectScopeAnalyzer, ProjectMetadata } from '@/lib/analyzer';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const data = await request.json();
 
     const { document, project_name, project_type, industry, team_size, timeline, quick } = data;
@@ -105,24 +113,20 @@ With an API key configured, you'll get:
 Your analysis will then be powered by Claude AI!`;
     }
 
-    const project = addProject({
+    // Save project to database
+    const project = await storage.createProject({
+      userId: session.userId,
       name: project_name || 'Unknown Project',
       type: project_type || 'software development',
       industry: industry || 'technology',
-      team_size: team_size || 'not specified',
+      teamSize: team_size || 'not specified',
       timeline: timeline || 'not specified',
       score: score || 0,
-      risk_level,
-      status: 'completed'
+      riskLevel: risk_level,
+      status: 'completed',
+      document: document,
+      analysisData: JSON.stringify({ results, report, metadata: { project_type, industry, team_size, timeline } }),
     });
-
-    const analysis = {
-      results,
-      report,
-      metadata: { project_type, industry, team_size, timeline }
-    };
-
-    addAnalysis(project.id, analysis);
 
     return NextResponse.json({
       success: true,
