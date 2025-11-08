@@ -29,7 +29,7 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
         <Sidebar />
         <MainContent>
           <Header />
-          <div className="p-8 relative z-0">
+          <div className="p-8">
             {children}
           </div>
         </MainContent>

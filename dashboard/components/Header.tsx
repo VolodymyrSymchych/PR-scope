@@ -18,7 +18,9 @@ export const Header = memo(function Header() {
   const [user, setUser] = useState<User | null>(null);
   const [showTeamsDropdown, setShowTeamsDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const teamsButtonRef = useRef<HTMLButtonElement>(null);
   const teamsDropdownRef = useRef<HTMLDivElement>(null);
+  const userButtonRef = useRef<HTMLButtonElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -36,10 +38,20 @@ export const Header = memo(function Header() {
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (teamsDropdownRef.current && !teamsDropdownRef.current.contains(event.target as Node)) {
+      if (
+        teamsButtonRef.current && 
+        teamsDropdownRef.current && 
+        !teamsButtonRef.current.contains(event.target as Node) &&
+        !teamsDropdownRef.current.contains(event.target as Node)
+      ) {
         setShowTeamsDropdown(false);
       }
-      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+      if (
+        userButtonRef.current && 
+        userDropdownRef.current && 
+        !userButtonRef.current.contains(event.target as Node) &&
+        !userDropdownRef.current.contains(event.target as Node)
+      ) {
         setShowUserDropdown(false);
       }
     };
@@ -77,13 +89,14 @@ export const Header = memo(function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-[9999] glass-medium border-b border-white/10">
+    <header className="sticky top-0 z-[9999] glass-medium border-b border-white/10 isolate">
       <div className="flex items-center justify-between px-8 py-4">
         {/* Left section */}
         <div className="flex items-center space-x-8">
           {/* All Teams Dropdown */}
-          <div className="relative" ref={teamsDropdownRef}>
+          <div className="relative">
             <button
+              ref={teamsButtonRef}
               onClick={() => setShowTeamsDropdown(!showTeamsDropdown)}
               className="flex items-center space-x-2 glass-light px-3 py-1.5 rounded-lg hover:glass-medium duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-105 active:scale-95"
             >
@@ -96,44 +109,54 @@ export const Header = memo(function Header() {
             </button>
 
             {showTeamsDropdown && (
-              <div className="absolute top-full left-0 mt-2 w-56 rounded-xl border border-white/20 shadow-2xl z-[10000] bg-[#0F1419]/95 backdrop-blur-xl overflow-hidden">
-                <div className="p-2">
-                  <div className="px-3 py-2 text-xs text-text-tertiary uppercase tracking-wider font-medium">
-                    Teams
+              <>
+                <div
+                  className="fixed inset-0 z-[9998]"
+                  onClick={() => setShowTeamsDropdown(false)}
+                />
+                <div 
+                  ref={teamsDropdownRef}
+                  className="absolute top-full left-0 mt-2 w-56 rounded-xl border border-white/20 shadow-2xl z-[10000] bg-[#0F1419]/95 backdrop-blur-xl overflow-hidden"
+                  style={{ isolation: 'isolate' }}
+                >
+                  <div className="p-2">
+                    <div className="px-3 py-2 text-xs text-text-tertiary uppercase tracking-wider font-medium">
+                      Teams
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setShowTeamsDropdown(false);
+                        router.push('/projects');
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-text-primary transition-colors duration-200"
+                    >
+                      <div className="font-medium text-sm">All Teams</div>
+                      <div className="text-xs text-text-tertiary">View all projects</div>
+                    </button>
+                    <button 
+                      onClick={() => setShowTeamsDropdown(false)}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-text-primary transition-colors duration-200"
+                    >
+                      <div className="font-medium text-sm">Development</div>
+                      <div className="text-xs text-text-tertiary">5 members</div>
+                    </button>
+                    <button 
+                      onClick={() => setShowTeamsDropdown(false)}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-text-primary transition-colors duration-200"
+                    >
+                      <div className="font-medium text-sm">Design</div>
+                      <div className="text-xs text-text-tertiary">3 members</div>
+                    </button>
+                    <button 
+                      onClick={() => setShowTeamsDropdown(false)}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-text-primary transition-colors duration-200"
+                    >
+                      <div className="font-medium text-sm">Marketing</div>
+                      <div className="text-xs text-text-tertiary">2 members</div>
+                    </button>
                   </div>
-                  <button 
-                    onClick={() => {
-                      setShowTeamsDropdown(false);
-                      router.push('/projects');
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-text-primary transition-colors duration-200"
-                  >
-                    <div className="font-medium text-sm">All Teams</div>
-                    <div className="text-xs text-text-tertiary">View all projects</div>
-                  </button>
-                  <button 
-                    onClick={() => setShowTeamsDropdown(false)}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-text-primary transition-colors duration-200"
-                  >
-                    <div className="font-medium text-sm">Development</div>
-                    <div className="text-xs text-text-tertiary">5 members</div>
-                  </button>
-                  <button 
-                    onClick={() => setShowTeamsDropdown(false)}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-text-primary transition-colors duration-200"
-                  >
-                    <div className="font-medium text-sm">Design</div>
-                    <div className="text-xs text-text-tertiary">3 members</div>
-                  </button>
-                  <button 
-                    onClick={() => setShowTeamsDropdown(false)}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-text-primary transition-colors duration-200"
-                  >
-                    <div className="font-medium text-sm">Marketing</div>
-                    <div className="text-xs text-text-tertiary">2 members</div>
-                  </button>
                 </div>
-              </div>
+              </>
             )}
           </div>
         </div>
@@ -154,8 +177,9 @@ export const Header = memo(function Header() {
           <NotificationBell />
 
           {/* User profile dropdown */}
-          <div className="relative pl-4 border-l border-white/10" ref={userDropdownRef}>
+          <div className="relative pl-4 border-l border-white/10">
             <button
+              ref={userButtonRef}
               onClick={() => setShowUserDropdown(!showUserDropdown)}
               className="flex items-center space-x-3 hover:opacity-80 transition-opacity duration-200"
             >
@@ -178,59 +202,69 @@ export const Header = memo(function Header() {
             </button>
 
             {showUserDropdown && (
-              <div className="absolute top-full right-0 mt-2 w-64 rounded-xl border border-white/20 shadow-2xl z-[10000] bg-[#0F1419]/95 backdrop-blur-xl overflow-hidden">
-                <div className="p-2">
-                  {/* User Info */}
-                  <div className="px-3 py-3 border-b border-white/10">
-                    <div className="font-semibold text-text-primary text-sm">
-                      {user?.fullName || user?.username}
+              <>
+                <div
+                  className="fixed inset-0 z-[9998]"
+                  onClick={() => setShowUserDropdown(false)}
+                />
+                <div 
+                  ref={userDropdownRef}
+                  className="absolute top-full right-0 mt-2 w-64 rounded-xl border border-white/20 shadow-2xl z-[10000] bg-[#0F1419]/95 backdrop-blur-xl overflow-hidden"
+                  style={{ isolation: 'isolate' }}
+                >
+                  <div className="p-2">
+                    {/* User Info */}
+                    <div className="px-3 py-3 border-b border-white/10">
+                      <div className="font-semibold text-text-primary text-sm">
+                        {user?.fullName || user?.username}
+                      </div>
+                      <div className="text-xs text-text-tertiary mt-0.5">{user?.email}</div>
                     </div>
-                    <div className="text-xs text-text-tertiary mt-0.5">{user?.email}</div>
-                  </div>
 
-                  {/* Menu Items */}
-                  <button
-                    onClick={() => {
-                      setShowUserDropdown(false);
-                      router.push('/settings');
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-text-primary transition-colors duration-200 mt-2"
-                  >
-                    ⚙️ Settings
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowUserDropdown(false);
-                      router.push('/friends');
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-text-primary transition-colors duration-200"
-                  >
-                    👥 Friends
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowUserDropdown(false);
-                      router.push('/payment');
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-text-primary transition-colors duration-200"
-                  >
-                    💳 Billing
-                  </button>
-
-                  {/* Sign Out */}
-                  <div className="border-t border-white/10 mt-2 pt-2">
+                    {/* Menu Items */}
                     <button
                       onClick={() => {
                         setShowUserDropdown(false);
-                        handleSignOut();
+                        router.push('/settings');
                       }}
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors duration-200"
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-text-primary transition-colors duration-200 mt-2"
                     >
-                      🚪 Sign Out
+                      ⚙️ Settings
                     </button>
+                    <button
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        router.push('/friends');
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-text-primary transition-colors duration-200"
+                    >
+                      👥 Friends
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        router.push('/payment');
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-text-primary transition-colors duration-200"
+                    >
+                      💳 Billing
+                    </button>
+
+                    {/* Sign Out */}
+                    <div className="border-t border-white/10 mt-2 pt-2">
+                      <button
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          handleSignOut();
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors duration-200"
+                      >
+                        🚪 Sign Out
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
         </div>
