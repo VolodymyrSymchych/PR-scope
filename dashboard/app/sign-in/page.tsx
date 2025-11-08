@@ -131,7 +131,7 @@ export default function SignInPage() {
             <button
               type="submit"
               disabled={loading}
-              className="glass-button w-full py-3 rounded-xl font-semibold text-white hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="glass-button w-full py-3 rounded-xl font-semibold text-white hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
@@ -151,7 +151,7 @@ export default function SignInPage() {
           <div className="grid grid-cols-2 gap-4">
             <button
               type="button"
-              className="glass-subtle hover:glass-light border border-border rounded-xl p-3 flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
+              className="glass-subtle hover:glass-light border border-border rounded-xl p-3 flex items-center justify-center gap-2 transition-scale hover:scale-105 active:scale-95"
               onClick={() => alert('Google OAuth integration coming soon')}
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -177,7 +177,7 @@ export default function SignInPage() {
 
             <button
               type="button"
-              className="glass-subtle hover:glass-light border border-border rounded-xl p-3 flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
+              className="glass-subtle hover:glass-light border border-border rounded-xl p-3 flex items-center justify-center gap-2 transition-scale hover:scale-105 active:scale-95"
               onClick={() => alert('Microsoft OAuth integration coming soon')}
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">

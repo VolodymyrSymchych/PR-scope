@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
+import { usePathname } from 'next/navigation';
 
 interface LogoProps {
   variant?: 'default' | 'compact' | 'icon';
@@ -11,11 +12,17 @@ interface LogoProps {
 }
 
 export function Logo({ variant = 'default', showText = true, className = '' }: LogoProps) {
+  const pathname = usePathname();
   const logoSize = variant === 'compact' ? 40 : variant === 'icon' ? 64 : variant === 'default' ? 96 : 48;
   const textSize = variant === 'compact' ? 'text-lg' : 'text-xl';
-  
-  return (
-    <Link href="/" className={`flex items-center gap-3 group ${className}`}>
+
+  // Auth pages should link to home, authenticated pages link to dashboard
+  const authPages = ['/sign-in', '/sign-up', '/verify', '/forgot-password'];
+  const isAuthPage = authPages.includes(pathname);
+  const linkHref = isAuthPage ? '/' : '/';
+
+  const logoContent = (
+    <>
       <motion.div
         className="relative"
         whileHover={{ scale: 1.05 }}
@@ -41,6 +48,12 @@ export function Logo({ variant = 'default', showText = true, className = '' }: L
           )}
         </div>
       )}
+    </>
+  );
+
+  return (
+    <Link href={linkHref} className={`flex items-center gap-3 group ${className}`}>
+      {logoContent}
     </Link>
   );
 }

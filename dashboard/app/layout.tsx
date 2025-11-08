@@ -2,10 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/ThemeProvider';
-import { SidebarProvider } from '@/components/SidebarContext';
-import { Sidebar } from '@/components/Sidebar';
-import { Header } from '@/components/Header';
-import { MainContent } from '@/components/MainContent';
+import { ConditionalLayout } from '@/components/ConditionalLayout';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -23,17 +20,9 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} glass-theme bg-background text-text-primary`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <SidebarProvider>
-            <div className="flex min-h-screen">
-              <Sidebar />
-              <MainContent>
-                <Header />
-                <div className="p-8">
-                  {children}
-                </div>
-              </MainContent>
-            </div>
-          </SidebarProvider>
+          <ConditionalLayout>
+            {children}
+          </ConditionalLayout>
         </ThemeProvider>
       </body>
     </html>

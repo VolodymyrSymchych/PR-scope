@@ -89,10 +89,10 @@ export function NotificationBell() {
       {showNotifications && (
         <>
           <div
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 z-[9998]"
             onClick={() => setShowNotifications(false)}
           />
-          <div className="absolute right-0 mt-2 w-96 max-h-[600px] rounded-2xl border border-white/20 shadow-2xl z-50 overflow-hidden bg-[#1a1d24]">
+          <div className="absolute right-0 mt-2 w-96 max-h-[600px] rounded-2xl border border-white/20 shadow-2xl z-[10000] overflow-hidden bg-[#1a1d24]">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-border">
               <h3 className="font-semibold text-text-primary">Notifications</h3>

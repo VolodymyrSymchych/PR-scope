@@ -132,36 +132,40 @@
       inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
   }
 
-  /* Glassmorphism utility classes */
+  /* Optimized glassmorphism - reduced blur for performance */
   .glass-heavy {
     background: rgba(255, 255, 255, 0.12);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.18);
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    transform: translateZ(0);
+    will-change: transform;
   }
 
   .glass-medium {
-    background: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     border: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+    transform: translateZ(0);
+    will-change: transform;
   }
 
   .glass-light {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    transform: translateZ(0);
   }
 
   .glass-subtle {
-    background: rgba(255, 255, 255, 0.04);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.08);
+    /* No backdrop-filter for better performance */
   }
 
   /* Smooth easing functions */
@@ -175,48 +179,58 @@
   }
 
   .glass-hover {
-    transition: all 0.2s var(--ease-smooth-out);
-    will-change: transform, background-color, border-color;
+    transition-property: transform, background-color, border-color, box-shadow;
+    transition-timing-function: var(--ease-smooth-out);
+    transition-duration: 0.2s;
+    will-change: transform;
+    transform: translateZ(0);
   }
 
   .glass-hover:hover {
     background: rgba(255, 255, 255, 0.12);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    transform: translateY(-4px) scale(1.01);
-    transition: all 0.15s var(--ease-spring);
+    transform: translateY(-4px) scale(1.01) translateZ(0);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    transition-duration: 0.15s;
+    transition-timing-function: var(--ease-spring);
   }
 
   .glass-button {
     background: linear-gradient(135deg, rgba(128, 152, 249, 0.3), rgba(128, 152, 249, 0.2));
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     border: 1px solid rgba(128, 152, 249, 0.4);
     box-shadow: 0 4px 15px rgba(128, 152, 249, 0.3);
-    transition: all 0.2s var(--ease-smooth-out);
-    will-change: transform, box-shadow, background;
+    transition-property: transform, box-shadow, background-color;
+    transition-timing-function: var(--ease-smooth-out);
+    transition-duration: 0.2s;
+    will-change: transform;
+    transform: translateZ(0);
   }
 
   .glass-button:hover {
     background: linear-gradient(135deg, rgba(128, 152, 249, 0.4), rgba(128, 152, 249, 0.3));
     box-shadow: 0 8px 25px rgba(128, 152, 249, 0.5);
-    transform: translateY(-3px) scale(1.02);
-    transition: all 0.15s var(--ease-spring);
+    transform: translateY(-3px) scale(1.02) translateZ(0);
+    transition-duration: 0.15s;
+    transition-timing-function: var(--ease-spring);
   }
 
   .glass-button:active {
-    transform: translateY(-1px) scale(0.98);
-    transition: all 0.1s var(--ease-smooth-in);
+    transform: translateY(-1px) scale(0.98) translateZ(0);
+    transition-duration: 0.1s;
+    transition-timing-function: var(--ease-smooth-in);
   }
 
   .glass-input {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: all 0.2s var(--ease-smooth-out);
-    will-change: background-color, border-color, box-shadow;
+    transition-property: background-color, border-color, box-shadow;
+    transition-timing-function: var(--ease-smooth-out);
+    transition-duration: 0.2s;
+    transform: translateZ(0);
   }
 
   .glass-input:focus {
@@ -224,7 +238,26 @@
     border: 1px solid rgba(128, 152, 249, 0.6);
     box-shadow: 0 0 20px rgba(128, 152, 249, 0.3);
     outline: none;
-    transition: all 0.15s var(--ease-smooth-out);
+    transition-duration: 0.15s;
+  }
+
+  /* Optimized transition utilities */
+  .transition-transform-opacity {
+    transition-property: transform, opacity;
+    transition-timing-function: var(--ease-smooth-out);
+    transition-duration: 0.2s;
+  }
+
+  .transition-colors {
+    transition-property: color, background-color, border-color;
+    transition-timing-function: var(--ease-smooth-out);
+    transition-duration: 0.2s;
+  }
+
+  .transition-scale {
+    transition-property: transform;
+    transition-timing-function: var(--ease-smooth-out);
+    transition-duration: 0.2s;
   }
   
   .gradient-text {
@@ -312,35 +345,40 @@
     }
   }
 
-  /* Smooth transitions for all interactive elements */
-  * {
-    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  /* Enhanced hover transitions - only for interactive elements */
+  button, a, [role="button"], input, select, textarea {
+    transition-property: color, background-color, border-color, opacity, transform;
     transition-timing-function: var(--ease-smooth-out);
-    transition-duration: 0.15s;
+    transition-duration: 0.2s;
+    transform: translateZ(0);
   }
 
-  /* Enhanced hover transitions */
   button, a, [role="button"] {
-    transition: all 0.2s var(--ease-smooth-out);
     will-change: transform;
   }
 
   button:hover, a:hover, [role="button"]:hover {
-    transition: all 0.15s var(--ease-spring);
+    transition-duration: 0.15s;
+    transition-timing-function: var(--ease-spring);
   }
 
   button:active, a:active, [role="button"]:active {
-    transition: all 0.1s var(--ease-smooth-in);
+    transition-duration: 0.1s;
+    transition-timing-function: var(--ease-smooth-in);
   }
 
   /* Smooth card animations */
   .glass-light, .glass-medium, .glass-heavy, .glass-strong {
-    transition: all 0.2s var(--ease-smooth-out);
-    will-change: transform, background-color, border-color, box-shadow;
+    transition-property: transform, background-color, border-color, box-shadow;
+    transition-timing-function: var(--ease-smooth-out);
+    transition-duration: 0.2s;
+    will-change: transform;
+    contain: layout style paint;
   }
 
   .glass-light:hover, .glass-medium:hover, .glass-heavy:hover, .glass-strong:hover {
-    transition: all 0.15s var(--ease-spring);
+    transition-duration: 0.15s;
+    transition-timing-function: var(--ease-spring);
   }
   
   .bg-grid {

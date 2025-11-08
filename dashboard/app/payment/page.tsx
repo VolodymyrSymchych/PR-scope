@@ -112,7 +112,7 @@ export default function PaymentPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background px-4 py-16">
+    <div className="min-h-[calc(100vh-8rem)] bg-background px-4 py-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-16">
