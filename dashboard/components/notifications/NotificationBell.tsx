@@ -87,16 +87,16 @@ export function NotificationBell() {
       {showNotifications && (
         <>
           <div
-            className="fixed inset-0 z-[9998]"
+            className="fixed inset-0 z-40"
             onClick={() => setShowNotifications(false)}
           />
-          <div className="absolute right-0 mt-2 w-96 max-h-[600px] rounded-2xl border border-white/20 shadow-2xl z-[10000] overflow-hidden bg-[#1a1d24]">
+          <div className="absolute right-0 mt-2 w-96 max-h-[600px] rounded-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] z-50 overflow-hidden bg-[#0a0d14]/80 backdrop-blur-xl backdrop-saturate-150 animate-fadeIn">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
+            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
               <h3 className="font-semibold text-text-primary">Notifications</h3>
               <button
                 onClick={() => setShowNotifications(false)}
-                className="p-1 rounded-lg hover:bg-white/10 transition-colors"
+                className="p-1 rounded-lg hover:bg-white/10 hover:backdrop-blur-sm transition-all duration-200"
               >
                 <X className="w-4 h-4 text-text-tertiary" />
               </button>
@@ -110,11 +110,11 @@ export function NotificationBell() {
                   <p className="text-text-secondary">No notifications yet</p>
                 </div>
               ) : (
-                <div className="divide-y divide-border">
+                <div className="divide-y divide-white/10">
                   {notifications.map((notification) => (
                     <div
                       key={notification.id}
-                      className={`p-4 hover:bg-white/5 transition-colors cursor-pointer ${
+                      className={`p-4 hover:bg-white/10 hover:backdrop-blur-sm transition-all duration-200 cursor-pointer ${
                         !notification.read ? 'bg-primary/5' : ''
                       }`}
                       onClick={() => {
@@ -157,14 +157,14 @@ export function NotificationBell() {
 
             {/* Footer */}
             {notifications.length > 0 && (
-              <div className="p-3 border-t border-border bg-surface-elevated/50">
+              <div className="p-3 border-t border-white/10 bg-white/5">
                 <button
                   onClick={() => {
                     notifications.forEach((n) => {
                       if (!n.read) markAsRead(n.id);
                     });
                   }}
-                  className="w-full text-sm text-primary hover:text-primary-dark font-semibold transition-colors"
+                  className="w-full text-sm text-primary hover:text-primary-dark font-semibold transition-all duration-200 hover:bg-white/10 py-2 rounded-lg"
                 >
                   Mark all as read
                 </button>

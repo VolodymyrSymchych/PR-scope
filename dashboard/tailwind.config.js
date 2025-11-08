@@ -33,6 +33,7 @@ module.exports = {
         "float": "float 6s ease-in-out infinite",
         "pulse-slow": "pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "grid": "grid 20s linear infinite",
+        "fadeIn": "fadeIn 200ms ease-out",
       },
       keyframes: {
         float: {
@@ -46,6 +47,10 @@ module.exports = {
         grid: {
           "0%": { transform: "translateY(0)" },
           "100%": { transform: "translateY(24px)" },
+        },
+        fadeIn: {
+          "0%": { opacity: "0", transform: "translateY(-4px) scale(0.95)" },
+          "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
         },
       },
     },
