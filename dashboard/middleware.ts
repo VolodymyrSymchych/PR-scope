@@ -8,6 +8,7 @@ const JWT_SECRET = new TextEncoder().encode(
 
 // Routes that require authentication
 const protectedRoutes = [
+  '/',
   '/dashboard',
   '/projects',
   '/tasks',
@@ -29,26 +30,10 @@ export async function middleware(request: NextRequest) {
   try {
     const { pathname } = request.nextUrl;
 
-    // Handle root path redirect
-    if (pathname === '/') {
-      const token = request.cookies.get('session')?.value;
-      let isAuthenticated = false;
-
-      if (token) {
-        try {
-          await jwtVerify(token, JWT_SECRET);
-          isAuthenticated = true;
-        } catch (error) {
-          isAuthenticated = false;
-        }
-      }
-
-      const redirectUrl = isAuthenticated ? '/projects' : '/sign-in';
-      return NextResponse.redirect(new URL(redirectUrl, request.url));
-    }
-
     // Check if the route needs protection
-    const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
+    const isProtectedRoute = protectedRoutes.some(route =>
+      route === '/' ? pathname === '/' : pathname.startsWith(route)
+    );
     const isAuthRoute = authRoutes.some(route => pathname.startsWith(route));
 
     // Skip middleware for non-protected and non-auth routes
