@@ -20,9 +20,18 @@ const nextConfig = {
       ...config.resolve.alias,
     };
     
+    // Ensure proper module resolution for AWS SDK
+    config.resolve.modules = [
+      ...(config.resolve.modules || []),
+      'node_modules',
+    ];
+    
     // Ignore missing optional dependencies
     config.ignoreWarnings = [
       { module: /node_modules\/@aws-sdk\/util-endpoints/ },
+      { message: /Can't resolve '@aws-crypto\/crc32'/ },
+      { message: /Can't resolve '@aws-crypto\/util'/ },
+      { message: /Can't resolve '@aws-crypto\/crc32c'/ },
     ];
     
     return config;
