@@ -1,7 +1,14 @@
 import { Resend } from 'resend';
 import { VerificationEmail } from './templates/verification-email';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy initialization to avoid errors during build time
+let resendClient: Resend | null = null;
+function getResendClient() {
+  if (!resendClient) {
+    resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendClient;
+}
 
 export async function sendVerificationEmail(
   email: string,
@@ -12,7 +19,7 @@ export async function sendVerificationEmail(
   const verificationUrl = `${baseUrl}/verify?token=${token}`;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResendClient().emails.send({
       from: process.env.EMAIL_FROM || 'Project Scope Analyzer <onboarding@resend.dev>',
       to: [email],
       subject: 'Verify your email address',
@@ -40,7 +47,7 @@ export async function sendPasswordResetEmail(
   const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResendClient().emails.send({
       from: process.env.EMAIL_FROM || 'Project Scope Analyzer <onboarding@resend.dev>',
       to: [email],
       subject: 'Reset your password',

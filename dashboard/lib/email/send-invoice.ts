@@ -5,7 +5,14 @@ import { InvoiceDueDateReminder } from './templates/invoice-due-date-email';
 import { InvoiceStatusChangeEmail } from './templates/invoice-status-change-email';
 import { generateInvoicePDF } from '@/lib/invoice-pdf';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy initialization to avoid errors during build time
+let resendClient: Resend | null = null;
+function getResendClient() {
+  if (!resendClient) {
+    resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendClient;
+}
 
 interface Invoice {
   id: number;
@@ -72,7 +79,7 @@ export async function sendInvoiceEmail(
     : `${baseUrl}/invoices/${invoice.id}`;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResendClient().emails.send({
       from: process.env.EMAIL_FROM || 'Project Scope Analyzer <onboarding@resend.dev>',
       to: [email],
       subject: `Invoice #${invoice.invoiceNumber} - ${formatCurrency(invoice.totalAmount, invoice.currency)}`,
@@ -110,7 +117,7 @@ export async function sendOverdueReminder(invoice: Invoice): Promise<void> {
   const invoiceUrl = `${baseUrl}/invoices/${invoice.id}`;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResendClient().emails.send({
       from: process.env.EMAIL_FROM || 'Project Scope Analyzer <onboarding@resend.dev>',
       to: [email],
       subject: `Overdue Invoice #${invoice.invoiceNumber} - Action Required`,
@@ -149,7 +156,7 @@ export async function sendDueDateReminder(invoice: Invoice): Promise<void> {
   const invoiceUrl = `${baseUrl}/invoices/${invoice.id}`;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResendClient().emails.send({
       from: process.env.EMAIL_FROM || 'Project Scope Analyzer <onboarding@resend.dev>',
       to: [email],
       subject: `Invoice #${invoice.invoiceNumber} due in 3 days`,
@@ -186,7 +193,7 @@ export async function sendStatusChangeEmail(
   const invoiceUrl = `${baseUrl}/invoices/${invoice.id}`;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResendClient().emails.send({
       from: process.env.EMAIL_FROM || 'Project Scope Analyzer <onboarding@resend.dev>',
       to: [email],
       subject: `Invoice #${invoice.invoiceNumber} status updated to ${invoice.status}`,
