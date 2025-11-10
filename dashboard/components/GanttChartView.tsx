@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { Gantt } from 'frappe-gantt';
-import 'frappe-gantt/dist/frappe-gantt.css';
 import axios from 'axios';
 import { Calendar } from 'lucide-react';
 
@@ -304,12 +303,17 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           overflow-x: hidden !important;
         }
 
-        /* Gantt container */
+        /* Gantt container - base styles */
         .gantt-container {
           background: transparent !important;
           width: 100% !important;
           min-width: 100% !important;
           display: block !important;
+          line-height: 14.5px !important;
+          position: relative !important;
+          overflow: auto !important;
+          font-size: 12px !important;
+          border-radius: 8px !important;
         }
 
         /* Frappe Gantt SVG */
@@ -320,7 +324,7 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           font-family: inherit !important;
         }
 
-        /* Grid lines */
+        /* Grid background */
         .gantt-container svg .grid-background {
           fill: rgba(255, 255, 255, 0.02) !important;
         }
@@ -329,8 +333,11 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           fill: rgba(255, 255, 255, 0.02) !important;
         }
 
-        .gantt-container svg .grid-header {
-          fill: rgba(255, 255, 255, 0.05) !important;
+        /* Grid header */
+        .gantt-container .grid-header {
+          background-color: rgba(255, 255, 255, 0.05) !important;
+          backdrop-filter: blur(4px) !important;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
         }
 
         .gantt-container svg .row-line {
@@ -343,34 +350,49 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           stroke-width: 1px !important;
         }
 
-        .gantt-container svg .today-highlight {
-          fill: rgba(128, 152, 249, 0.15) !important;
+        .gantt-container svg .tick.thick {
+          stroke: rgba(255, 255, 255, 0.12) !important;
+          stroke-width: 1px !important;
+        }
+
+        /* Today highlight */
+        .gantt-container svg .today-highlight,
+        .gantt-container .current-highlight {
+          background: rgba(128, 152, 249, 0.15) !important;
+          stroke: rgba(128, 152, 249, 0.3) !important;
         }
 
         /* Calendar text */
-        .gantt-container svg .upper-text,
-        .gantt-container svg .lower-text {
+        .gantt-container .upper-text,
+        .gantt-container .lower-text {
           fill: rgba(255, 255, 255, 0.8) !important;
           font-size: 10px !important;
           font-weight: 500 !important;
           font-family: inherit !important;
+          color: rgba(255, 255, 255, 0.8) !important;
         }
 
-        .gantt-container svg .upper-text {
+        .gantt-container .upper-text {
           font-weight: 600 !important;
           font-size: 11px !important;
           text-transform: uppercase !important;
+          color: rgba(255, 255, 255, 0.9) !important;
         }
 
         /* Task bars */
+        .gantt-container svg .bar-wrapper {
+          cursor: pointer !important;
+        }
+
         .gantt-container svg .bar {
           filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)) !important;
           transition: all 0.2s ease !important;
           rx: 4px !important;
           ry: 4px !important;
+          stroke-width: 0 !important;
         }
 
-        .gantt-container svg .bar:hover {
+        .gantt-container svg .bar-wrapper:hover .bar {
           filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4)) !important;
           opacity: 0.9 !important;
         }
@@ -408,6 +430,19 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           stroke: rgba(128, 152, 249, 0.6) !important;
           fill: rgba(128, 152, 249, 0.6) !important;
           stroke-width: 2px !important;
+        }
+
+        /* Handles */
+        .gantt-container svg .handle {
+          fill: rgba(255, 255, 255, 0.3) !important;
+          stroke: rgba(255, 255, 255, 0.5) !important;
+          stroke-width: 1px !important;
+        }
+
+        .gantt-container svg .handle.active,
+        .gantt-container svg .handle.visible {
+          opacity: 1 !important;
+          cursor: ew-resize !important;
         }
 
         /* Custom scrollbar */
