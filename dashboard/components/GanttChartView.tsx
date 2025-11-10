@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Gantt, Task, ViewMode } from 'gantt-task-react';
-import 'gantt-task-react/dist/index.css';
+import { Gantt } from 'frappe-gantt';
 import axios from 'axios';
 import { Calendar } from 'lucide-react';
 
@@ -22,100 +21,19 @@ interface GanttChartViewProps {
   projectId?: number;
 }
 
+type ViewMode = 'Quarter Day' | 'Half Day' | 'Day' | 'Week' | 'Month';
+
 export function GanttChartView({ projectId }: GanttChartViewProps) {
   const [tasks, setTasks] = useState<TaskData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.Month);
-  const [containerWidth, setContainerWidth] = useState(0);
+  const [viewMode, setViewMode] = useState<ViewMode>('Month');
   const containerRef = useRef<HTMLDivElement>(null);
+  const ganttRef = useRef<Gantt | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
 
   useEffect(() => {
     loadTasks();
   }, [projectId]);
-
-  useEffect(() => {
-    const updateWidth = () => {
-      if (containerRef.current) {
-        setContainerWidth(containerRef.current.offsetWidth);
-      }
-    };
-
-    updateWidth();
-    window.addEventListener('resize', updateWidth);
-    return () => window.removeEventListener('resize', updateWidth);
-  }, []);
-
-  // Format dates to DD.MM format after Gantt renders
-  useEffect(() => {
-    const formatDates = () => {
-      // Find all calendar text elements (dates) - but not month names
-      const calendarTexts = document.querySelectorAll('g.calendar text:not(g.calendarTop text)');
-      const monthMap: { [key: string]: number } = {
-        'january': 1, 'february': 2, 'march': 3, 'april': 4,
-        'may': 5, 'june': 6, 'july': 7, 'august': 8,
-        'september': 9, 'october': 10, 'november': 11, 'december': 12
-      };
-      
-      // Get current month from calendarTop
-      let currentMonth = new Date().getMonth() + 1;
-      const calendarTop = document.querySelector('g.calendarTop text');
-      if (calendarTop) {
-        const monthText = (calendarTop.textContent || '').toLowerCase();
-        for (const [monthName, monthNum] of Object.entries(monthMap)) {
-          if (monthText.includes(monthName)) {
-            currentMonth = monthNum;
-            break;
-          }
-        }
-      }
-      
-      calendarTexts.forEach((textEl) => {
-        const text = textEl.textContent || '';
-        // Skip if already formatted or empty
-        if (!text || text.includes('.')) return;
-        
-        // Parse formats like "Mon, 25" or "25"
-        const dateMatch = text.match(/(\w+),\s*(\d+)/);
-        if (dateMatch) {
-          const day = parseInt(dateMatch[2]);
-          // Format as DD.MM
-          const formatted = `${day.toString().padStart(2, '0')}.${currentMonth.toString().padStart(2, '0')}`;
-          textEl.textContent = formatted;
-        } else {
-          const dayMatch = text.match(/^(\d+)$/);
-          if (dayMatch) {
-            const day = parseInt(dayMatch[1]);
-            // Format as DD.MM
-            const formatted = `${day.toString().padStart(2, '0')}.${currentMonth.toString().padStart(2, '0')}`;
-            textEl.textContent = formatted;
-          }
-        }
-      });
-    };
-
-    // Use MutationObserver to catch when Gantt updates
-    const observer = new MutationObserver(() => {
-      formatDates();
-    });
-
-    // Observe changes in the Gantt container
-    const ganttContainer = document.querySelector('.gantt-container');
-    if (ganttContainer) {
-      observer.observe(ganttContainer, {
-        childList: true,
-        subtree: true,
-        characterData: true
-      });
-    }
-
-    // Also run immediately after a delay
-    const timer = setTimeout(formatDates, 200);
-    
-    return () => {
-      clearTimeout(timer);
-      observer.disconnect();
-    };
-  }, [tasks, viewMode]);
 
   const loadTasks = async () => {
     try {
@@ -129,7 +47,7 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
     }
   };
 
-  const convertToGanttTasks = (tasks: TaskData[]): Task[] => {
+  const convertToGanttTasks = (tasks: TaskData[]) => {
     return tasks
       .filter(task => task.startDate && task.dueDate)
       .map(task => {
@@ -138,54 +56,136 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
         const dependsOn = task.dependsOn ? JSON.parse(task.dependsOn) : [];
         
         // Determine colors based on status with glassmorphism theme
-        let progressColor = 'rgba(107, 114, 128, 0.8)'; // gray for todo
-        let backgroundColor = 'rgba(107, 114, 128, 0.7)';
-        
+        let custom_class = 'todo';
         if (task.status === 'done') {
-          progressColor = 'rgba(16, 185, 129, 0.85)'; // green with transparency
-          backgroundColor = 'rgba(16, 185, 129, 0.75)';
+          custom_class = 'done';
         } else if (task.status === 'in_progress') {
-          progressColor = 'rgba(128, 152, 249, 0.85)'; // primary blue with transparency
-          backgroundColor = 'rgba(128, 152, 249, 0.75)';
+          custom_class = 'in-progress';
         }
         
         return {
-          start: start,
-          end: end,
-          name: task.title,
           id: `task-${task.id}`,
-          type: 'task',
+          name: task.title,
+          start: start.toISOString().split('T')[0],
+          end: end.toISOString().split('T')[0],
           progress: task.progress,
-          styles: {
-            progressColor: progressColor,
-            progressSelectedColor: progressColor,
-            backgroundColor: backgroundColor,
-            backgroundSelectedColor: backgroundColor,
-            progressBottomColor: progressColor,
-            progressTopColor: progressColor,
-          },
+          custom_class: custom_class,
           dependencies: dependsOn.map((depId: number) => `task-${depId}`),
         };
       });
   };
 
-  const handleTaskChange = async (task: Task) => {
+  const handleTaskChange = (task: any) => {
     const taskId = parseInt(task.id.replace('task-', ''));
     const originalTask = tasks.find(t => t.id === taskId);
     
     if (!originalTask) return;
 
-    try {
-      await axios.put(`/api/tasks/${taskId}`, {
-        start_date: task.start.toISOString().split('T')[0],
-        due_date: task.end.toISOString().split('T')[0],
-        progress: task.progress,
-      });
+    // Parse dates from frappe-gantt format
+    const startDate = new Date(task._start);
+    const endDate = new Date(task._end);
+    const progress = task.progress || 0;
+
+    axios.put(`/api/tasks/${taskId}`, {
+      start_date: startDate.toISOString().split('T')[0],
+      due_date: endDate.toISOString().split('T')[0],
+      progress: progress,
+    }).then(() => {
       loadTasks();
-    } catch (error) {
+    }).catch((error) => {
       console.error('Failed to update task:', error);
-    }
+    });
   };
+
+  // Initialize and update Gantt chart
+  useEffect(() => {
+    if (loading || !containerRef.current) return;
+
+    const ganttTasks = convertToGanttTasks(tasks);
+    if (ganttTasks.length === 0) return;
+
+    // Destroy existing Gantt instance if it exists
+    if (ganttRef.current) {
+      const svg = containerRef.current.querySelector('svg');
+      if (svg) {
+        svg.remove();
+      }
+      ganttRef.current = null;
+    }
+
+    // Create new Gantt instance
+    try {
+      const gantt = new Gantt(containerRef.current, ganttTasks, {
+        view_mode: viewMode,
+        header_height: 50,
+        column_width: viewMode === 'Day' ? 50 : viewMode === 'Week' ? 80 : 120,
+        step: viewMode === 'Day' ? 24 : viewMode === 'Week' ? 1 : 1,
+        bar_height: 36,
+        bar_corner_radius: 4,
+        arrow_curve: 5,
+        padding: 18,
+        date_format: 'YYYY-MM-DD',
+        language: 'en',
+        on_click: handleTaskChange,
+        on_date_change: handleTaskChange,
+        on_progress_change: handleTaskChange,
+        on_view_change: (mode: ViewMode) => {
+          setViewMode(mode);
+        },
+      });
+
+      ganttRef.current = gantt;
+      svgRef.current = containerRef.current.querySelector('svg');
+
+      // Format dates to DD.MM format
+      setTimeout(() => {
+        formatDates();
+      }, 100);
+    } catch (error) {
+      console.error('Failed to initialize Gantt:', error);
+    }
+
+    return () => {
+      if (ganttRef.current) {
+        const svg = containerRef.current?.querySelector('svg');
+        if (svg) {
+          svg.remove();
+        }
+        ganttRef.current = null;
+      }
+    };
+  }, [tasks, viewMode, loading]);
+
+  // Format dates to DD.MM format
+  const formatDates = () => {
+    if (!containerRef.current) return;
+
+    const dateTexts = containerRef.current.querySelectorAll('.gantt .lower-text, .gantt .upper-text');
+    dateTexts.forEach((textEl) => {
+      const text = textEl.textContent || '';
+      if (!text || text.includes('.')) return;
+
+      // Try to parse date formats
+      const dateMatch = text.match(/(\d{1,2})/);
+      if (dateMatch) {
+        const day = parseInt(dateMatch[1]);
+        // Get month from parent context or use current month
+        const month = new Date().getMonth() + 1;
+        const formatted = `${day.toString().padStart(2, '0')}.${month.toString().padStart(2, '0')}`;
+        textEl.textContent = formatted;
+      }
+    });
+  };
+
+  // Update view mode when changed
+  useEffect(() => {
+    if (ganttRef.current) {
+      ganttRef.current.change_view_mode(viewMode);
+      setTimeout(() => {
+        formatDates();
+      }, 100);
+    }
+  }, [viewMode]);
 
   if (loading) {
     return (
@@ -218,9 +218,9 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           </div>
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => setViewMode(ViewMode.Day)}
+              onClick={() => setViewMode('Day')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                viewMode === ViewMode.Day
+                viewMode === 'Day'
                   ? 'bg-primary text-white shadow-[0_0_15px_rgba(128,152,249,0.5)]'
                   : 'glass-light text-text-secondary hover:glass-medium hover:text-text-primary'
               }`}
@@ -228,9 +228,9 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
               Day
             </button>
             <button
-              onClick={() => setViewMode(ViewMode.Week)}
+              onClick={() => setViewMode('Week')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                viewMode === ViewMode.Week
+                viewMode === 'Week'
                   ? 'bg-primary text-white shadow-[0_0_15px_rgba(128,152,249,0.5)]'
                   : 'glass-light text-text-secondary hover:glass-medium hover:text-text-primary'
               }`}
@@ -238,9 +238,9 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
               Week
             </button>
             <button
-              onClick={() => setViewMode(ViewMode.Month)}
+              onClick={() => setViewMode('Month')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                viewMode === ViewMode.Month
+                viewMode === 'Month'
                   ? 'bg-primary text-white shadow-[0_0_15px_rgba(128,152,249,0.5)]'
                   : 'glass-light text-text-secondary hover:glass-medium hover:text-text-primary'
               }`}
@@ -253,444 +253,8 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
       
       {/* Gantt Chart Container */}
       <div className="glass-medium rounded-2xl p-6 border border-white/10 w-full overflow-hidden" style={{ width: '100%', maxWidth: '100%' }}>
-        <div ref={containerRef} className="w-full overflow-x-auto overflow-y-visible custom-scrollbar" style={{ width: '100%' }}>
-        <style jsx global>{`
-          /* Main container - prevent page scroll */
-          .gantt-container {
-            background: transparent !important;
-            width: 100% !important;
-            min-width: 100% !important;
-            max-width: 100% !important;
-            display: block !important;
-            box-sizing: border-box !important;
-            overflow-x: visible !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          
-          /* Prevent horizontal scroll on page */
-          body {
-            overflow-x: hidden !important;
-          }
-
-          /* Gantt wrapper - allow horizontal scroll only inside */
-          .gantt-container > div {
-            width: 100% !important;
-            min-width: 100% !important;
-            max-width: 100% !important;
-            display: flex !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          
-          /* Root Gantt element */
-          .gantt-container,
-          .gantt-container * {
-            box-sizing: border-box !important;
-          }
-          
-          /* Calendar header background */
-          g.calendar rect {
-            fill: rgba(255, 255, 255, 0.05) !important;
-            stroke: rgba(255, 255, 255, 0.1) !important;
-            stroke-width: 1px !important;
-            height: 24px !important;
-          }
-          
-          /* Calendar text (dates) - format as DD.MM */
-          g.calendar text {
-            fill: rgba(255, 255, 255, 0.8) !important;
-            font-family: inherit !important;
-            font-size: 10px !important;
-            font-weight: 500 !important;
-          }
-          
-          /* Format date text to show only day.month */
-          g.calendar text:not([class*="calendarTop"]) {
-            font-size: 10px !important;
-          }
-
-          /* Calendar top (month name) - shorter format */
-          g.calendarTop text {
-            fill: rgba(255, 255, 255, 0.9) !important;
-            font-weight: 600 !important;
-            font-size: 11px !important;
-            text-transform: uppercase !important;
-          }
-          
-          g.calendarTop line {
-            stroke: rgba(255, 255, 255, 0.15) !important;
-            stroke-width: 1px !important;
-          }
-          
-          /* Grid background */
-          g.gridBody rect {
-            fill: rgba(255, 255, 255, 0.02) !important;
-          }
-          
-          /* Grid lines */
-          g.rowLines line,
-          g.ticks line {
-            stroke: rgba(255, 255, 255, 0.08) !important;
-            stroke-width: 1px !important;
-          }
-          
-          /* Today highlight */
-          g.today rect {
-            fill: rgba(128, 152, 249, 0.15) !important;
-            stroke: rgba(128, 152, 255, 0.3) !important;
-            stroke-width: 1px !important;
-          }
-          
-          /* Task bars */
-          g.bar rect {
-            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)) !important;
-            transition: all 0.2s ease !important;
-          }
-          
-          g.bar rect:hover {
-            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4)) !important;
-            opacity: 0.9 !important;
-          }
-          
-          /* Task bar handles */
-          g.handleGroup rect,
-          g.handleGroup polygon {
-            fill: rgba(255, 255, 255, 0.3) !important;
-            stroke: rgba(255, 255, 255, 0.5) !important;
-            stroke-width: 1px !important;
-            cursor: ew-resize !important;
-          }
-          
-          g.handleGroup rect:hover,
-          g.handleGroup polygon:hover {
-            fill: rgba(255, 255, 255, 0.5) !important;
-            stroke: rgba(255, 255, 255, 0.8) !important;
-          }
-          
-          /* Task text */
-          g.bar text {
-            fill: rgba(255, 255, 255, 0.95) !important;
-            font-weight: 500 !important;
-            font-size: 12px !important;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
-          }
-          
-          /* Dependency arrows */
-          g.arrows path,
-          g.arrows line {
-            stroke: rgba(128, 152, 249, 0.6) !important;
-            fill: rgba(128, 152, 249, 0.6) !important;
-            stroke-width: 2px !important;
-          }
-          
-          /* Table headers */
-          .gantt-table-header {
-            background: rgba(255, 255, 255, 0.05) !important;
-            backdrop-filter: blur(4px) !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
-          }
-          .gantt-table-header-cell {
-            color: rgba(255, 255, 255, 0.8) !important;
-            font-weight: 500 !important;
-            border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
-          }
-          .gantt-table-body-row {
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
-          }
-          .gantt-table-body-cell {
-            color: rgba(255, 255, 255, 0.9) !important;
-            border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
-            background: transparent !important;
-          }
-          .gantt-task-list-header {
-            background: rgba(255, 255, 255, 0.05) !important;
-            backdrop-filter: blur(4px) !important;
-            border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
-          }
-          .gantt-task-list-header-cell {
-            color: rgba(255, 255, 255, 0.8) !important;
-            font-weight: 500 !important;
-          }
-          .gantt-task-list-item {
-            background: transparent !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
-          }
-          .gantt-task-list-item-name {
-            color: rgba(255, 255, 255, 0.9) !important;
-          }
-          .gantt-calendar-header {
-            background: rgba(255, 255, 255, 0.05) !important;
-            backdrop-filter: blur(4px) !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
-            height: 28px !important;
-            min-height: 28px !important;
-          }
-          .gantt-calendar-header-cell {
-            color: rgba(255, 255, 255, 0.8) !important;
-            border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
-            padding: 4px 6px !important;
-            font-size: 11px !important;
-          }
-          .gantt-calendar-top {
-            background: rgba(255, 255, 255, 0.03) !important;
-            backdrop-filter: blur(2px) !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
-            height: 24px !important;
-            min-height: 24px !important;
-          }
-          .gantt-calendar-top-cell {
-            color: rgba(255, 255, 255, 0.7) !important;
-            border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
-            padding: 3px 6px !important;
-            font-size: 11px !important;
-          }
-          .gantt-calendar-bottom {
-            background: transparent !important;
-            height: 24px !important;
-            min-height: 24px !important;
-          }
-          .gantt-calendar-bottom-cell {
-            color: rgba(255, 255, 255, 0.8) !important;
-            border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
-            padding: 3px 4px !important;
-            font-size: 10px !important;
-          }
-          .gantt-task-bar {
-            border-radius: 4px !important;
-            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1) inset !important;
-            transition: all 0.2s ease !important;
-          }
-          .gantt-task-bar:hover {
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.2) inset !important;
-            transform: translateY(-1px) !important;
-          }
-          .gantt-task-bar-progress {
-            border-radius: 4px !important;
-            opacity: 0.9 !important;
-          }
-          
-          /* Selected task */
-          .gantt-task-bar-selected {
-            box-shadow: 0 0 0 2px rgba(128, 152, 249, 0.6), 0 4px 12px rgba(128, 152, 249, 0.3) !important;
-          }
-          
-          /* Custom scrollbar for Gantt container */
-          .custom-scrollbar::-webkit-scrollbar {
-            height: 8px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 4px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 4px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: rgba(128, 152, 249, 0.5);
-          }
-          
-          /* SVG container improvements - allow horizontal expansion */
-          .gantt-container svg {
-            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
-            width: auto !important;
-            min-width: 100% !important;
-            max-width: none !important;
-            height: auto !important;
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            box-sizing: border-box !important;
-          }
-
-          /* Make SVG viewBox responsive */
-          .gantt-container svg[viewBox] {
-            width: auto !important;
-            min-width: 100% !important;
-            height: auto !important;
-            preserveAspectRatio: none !important;
-            display: block !important;
-            visibility: visible !important;
-          }
-          
-          /* Ensure SVG content scales properly */
-          .gantt-container svg g {
-            transform-origin: 0 0;
-            display: block !important;
-            visibility: visible !important;
-          }
-          
-          /* Make sure grid and bars are visible */
-          .gantt-container svg g.grid,
-          .gantt-container svg g.gridBody,
-          .gantt-container svg g.bar,
-          .gantt-container svg g.content {
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-          }
-          
-          /* Ensure task bars are visible */
-          .gantt-container svg g.bar rect {
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-          }
-          
-          /* Ensure Gantt chart takes full width */
-          .gantt-container table {
-            width: 100% !important;
-            min-width: 100% !important;
-            max-width: 100% !important;
-            table-layout: fixed !important;
-          }
-          
-          /* Make calendar header full width */
-          .gantt-container .gantt-calendar-header,
-          .gantt-container .gantt-calendar-top,
-          .gantt-container .gantt-calendar-bottom {
-            width: 100% !important;
-            min-width: 100% !important;
-            max-width: 100% !important;
-          }
-          
-          /* Gantt content area should expand */
-          .gantt-container .gantt-table-body {
-            width: 100% !important;
-            min-width: 100% !important;
-            max-width: 100% !important;
-          }
-          
-          /* Hide task list on the left - first table with Name, From, To */
-          .gantt-container .gantt-task-list,
-          .gantt-container .gantt-task-list-header,
-          .gantt-container .gantt-task-list-item,
-          div[class*="_3_ygE"],
-          div[class*="_1nBOt"],
-          div[class*="_WuQ0f"],
-          div[class*="_2B2zv"]:has(div[class*="_3ZbQT"]),
-          div[class*="_3ZbQT"],
-          div[class*="_34SS0"],
-          div[class*="_3lLk3"] {
-            display: none !important;
-            width: 0 !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
-          }
-          
-          /* Hide the first column/table that contains task names */
-          .gantt-container > div > div:first-child {
-            display: none !important;
-            width: 0 !important;
-            visibility: hidden !important;
-          }
-          
-          /* Make the chart (second div with _CZjuD) take full width */
-          .gantt-container > div > div:last-child,
-          .gantt-container > div > div:nth-child(2),
-          div[class*="_CZjuD"] {
-            display: block !important;
-            width: 100% !important;
-            min-width: 100% !important;
-            max-width: 100% !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            flex: 1 1 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-
-          /* Make SVG inside chart take full width */
-          div[class*="_CZjuD"] svg {
-            width: auto !important;
-            min-width: 100% !important;
-            max-width: none !important;
-          }
-
-          /* Remove width restrictions - allow natural expansion */
-          .gantt-container svg,
-          .gantt-container > div,
-          div[class*="_CZjuD"] {
-            overflow: visible !important;
-          }
-          
-          .gantt-container .gantt-calendar {
-            width: 100% !important;
-            margin-left: 0 !important;
-          }
-          
-          /* Chart container - allow horizontal scroll */
-          div[class*="_CZjuD"] {
-            min-width: 100% !important;
-            width: 100% !important;
-            flex: 1 1 100% !important;
-            overflow-x: auto !important;
-            display: block !important;
-          }
-          
-          /* SVG should expand based on content but start from full width */
-          div[class*="_CZjuD"] svg {
-            width: 100% !important;
-            min-width: 100% !important;
-            display: block !important;
-          }
-          
-          /* Ensure SVG expands beyond container if needed */
-          div[class*="_CZjuD"] svg[width] {
-            min-width: max-content !important;
-          }
-
-          /* Make wrapper divs responsive */
-          .gantt-container > div > div {
-            box-sizing: border-box !important;
-          }
-
-          /* Make sure the inner scrollable area can expand */
-          .gantt-container .gantt-table-wrapper,
-          .gantt-container .gantt-table {
-            width: 100% !important;
-            min-width: 100% !important;
-            max-width: none !important;
-          }
-          
-          /* SVG container - start at full width, expand if needed */
-          .gantt-container svg {
-            width: 100% !important;
-            min-width: 100% !important;
-            display: block !important;
-          }
-          
-          /* If SVG has explicit width attribute, allow it to expand */
-          .gantt-container svg[width] {
-            min-width: max-content !important;
-          }
-        `}</style>
-        <Gantt
-          key={`gantt-${viewMode}`}
-          tasks={ganttTasks}
-          viewMode={viewMode}
-          onDateChange={handleTaskChange}
-          onProgressChange={handleTaskChange}
-          locale="en"
-          listCellWidth="0"
-          columnWidth={
-            containerWidth > 0
-              ? viewMode === ViewMode.Day
-                ? Math.max(40, Math.floor(containerWidth / 30))
-                : viewMode === ViewMode.Week
-                ? Math.max(60, Math.floor(containerWidth / 20))
-                : Math.max(80, Math.floor(containerWidth / 15))
-              : viewMode === ViewMode.Day
-              ? 50
-              : viewMode === ViewMode.Week
-              ? 80
-              : 120
-          }
-          rowHeight={36}
-          headerHeight={50}
-          ganttHeight={Math.min(600, ganttTasks.length * 36 + 80)}
-        />
+        <div className="w-full overflow-x-auto overflow-y-visible custom-scrollbar" style={{ width: '100%' }}>
+          <div ref={containerRef} className="gantt-container w-full" style={{ minWidth: '100%' }}></div>
         </div>
       </div>
 
@@ -711,7 +275,135 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           </div>
         </div>
       </div>
+
+      <style jsx global>{`
+        /* Prevent horizontal scroll on page */
+        body {
+          overflow-x: hidden !important;
+        }
+
+        /* Gantt container */
+        .gantt-container {
+          background: transparent !important;
+          width: 100% !important;
+          min-width: 100% !important;
+          display: block !important;
+        }
+
+        /* Frappe Gantt SVG */
+        .gantt-container svg {
+          width: 100% !important;
+          min-width: 100% !important;
+          background: transparent !important;
+          font-family: inherit !important;
+        }
+
+        /* Grid lines */
+        .gantt-container svg .grid-background {
+          fill: rgba(255, 255, 255, 0.02) !important;
+        }
+
+        .gantt-container svg .grid-row {
+          fill: rgba(255, 255, 255, 0.02) !important;
+        }
+
+        .gantt-container svg .grid-header {
+          fill: rgba(255, 255, 255, 0.05) !important;
+        }
+
+        .gantt-container svg .row-line {
+          stroke: rgba(255, 255, 255, 0.08) !important;
+          stroke-width: 1px !important;
+        }
+
+        .gantt-container svg .tick {
+          stroke: rgba(255, 255, 255, 0.08) !important;
+          stroke-width: 1px !important;
+        }
+
+        .gantt-container svg .today-highlight {
+          fill: rgba(128, 152, 249, 0.15) !important;
+        }
+
+        /* Calendar text */
+        .gantt-container svg .upper-text,
+        .gantt-container svg .lower-text {
+          fill: rgba(255, 255, 255, 0.8) !important;
+          font-size: 10px !important;
+          font-weight: 500 !important;
+          font-family: inherit !important;
+        }
+
+        .gantt-container svg .upper-text {
+          font-weight: 600 !important;
+          font-size: 11px !important;
+          text-transform: uppercase !important;
+        }
+
+        /* Task bars */
+        .gantt-container svg .bar {
+          filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)) !important;
+          transition: all 0.2s ease !important;
+          rx: 4px !important;
+          ry: 4px !important;
+        }
+
+        .gantt-container svg .bar:hover {
+          filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4)) !important;
+          opacity: 0.9 !important;
+        }
+
+        /* Task bar colors based on status */
+        .gantt-container svg .bar.todo {
+          fill: rgba(107, 114, 128, 0.8) !important;
+        }
+
+        .gantt-container svg .bar.in-progress {
+          fill: rgba(128, 152, 249, 0.85) !important;
+        }
+
+        .gantt-container svg .bar.done {
+          fill: rgba(16, 185, 129, 0.85) !important;
+        }
+
+        /* Progress bar */
+        .gantt-container svg .bar-progress {
+          fill: rgba(255, 255, 255, 0.3) !important;
+          rx: 4px !important;
+          ry: 4px !important;
+        }
+
+        /* Task labels */
+        .gantt-container svg .bar-label {
+          fill: rgba(255, 255, 255, 0.95) !important;
+          font-weight: 500 !important;
+          font-size: 12px !important;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
+        }
+
+        /* Dependency arrows */
+        .gantt-container svg .arrow {
+          stroke: rgba(128, 152, 249, 0.6) !important;
+          fill: rgba(128, 152, 249, 0.6) !important;
+          stroke-width: 2px !important;
+        }
+
+        /* Custom scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+          height: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(128, 152, 249, 0.5);
+        }
+      `}</style>
     </div>
   );
 }
-
