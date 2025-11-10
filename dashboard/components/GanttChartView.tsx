@@ -104,12 +104,11 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
     const ganttTasks = convertToGanttTasks(tasks);
     if (ganttTasks.length === 0) return;
 
+    // Clear container first
+    containerRef.current.innerHTML = '';
+
     // Destroy existing Gantt instance if it exists
     if (ganttRef.current) {
-      const svg = containerRef.current.querySelector('svg');
-      if (svg) {
-        svg.remove();
-      }
       ganttRef.current = null;
     }
 
@@ -140,19 +139,17 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
       // Format dates to DD.MM format
       setTimeout(() => {
         formatDates();
-      }, 100);
+      }, 200);
     } catch (error) {
       console.error('Failed to initialize Gantt:', error);
+      console.error('Error details:', error);
     }
 
     return () => {
-      if (ganttRef.current) {
-        const svg = containerRef.current?.querySelector('svg');
-        if (svg) {
-          svg.remove();
-        }
-        ganttRef.current = null;
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
       }
+      ganttRef.current = null;
     };
   }, [tasks, viewMode, loading]);
 
@@ -275,7 +272,7 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
       {/* Gantt Chart Container */}
       <div className="glass-medium rounded-2xl p-6 border border-white/10 w-full overflow-hidden" style={{ width: '100%', maxWidth: '100%' }}>
         <div className="w-full overflow-x-auto overflow-y-visible custom-scrollbar" style={{ width: '100%' }}>
-          <div ref={containerRef} className="gantt-container w-full" style={{ minWidth: '100%' }}></div>
+          <div ref={containerRef} className="gantt-container w-full" style={{ minWidth: '100%', minHeight: '400px', height: 'auto' }}></div>
         </div>
       </div>
 
@@ -308,12 +305,21 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           background: transparent !important;
           width: 100% !important;
           min-width: 100% !important;
+          min-height: 400px !important;
+          height: auto !important;
           display: block !important;
           line-height: 14.5px !important;
           position: relative !important;
-          overflow: auto !important;
+          overflow: visible !important;
           font-size: 12px !important;
           border-radius: 8px !important;
+        }
+        
+        /* Ensure SVG is visible */
+        .gantt-container svg.gantt {
+          display: block !important;
+          visibility: visible !important;
+          opacity: 1 !important;
         }
 
         /* Frappe Gantt SVG */
