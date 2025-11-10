@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Gantt } from 'frappe-gantt';
+import Gantt from 'frappe-gantt';
 import axios from 'axios';
 import { Calendar } from 'lucide-react';
 
@@ -99,10 +99,18 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
 
   // Initialize and update Gantt chart
   useEffect(() => {
-    if (loading || !containerRef.current) return;
+    if (loading || !containerRef.current) {
+      console.log('Waiting for container or loading:', { loading, hasContainer: !!containerRef.current });
+      return;
+    }
 
     const ganttTasks = convertToGanttTasks(tasks);
-    if (ganttTasks.length === 0) return;
+    console.log('Gantt tasks:', ganttTasks);
+    
+    if (ganttTasks.length === 0) {
+      console.log('No tasks to display');
+      return;
+    }
 
     // Clear container first
     containerRef.current.innerHTML = '';
@@ -112,38 +120,54 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
       ganttRef.current = null;
     }
 
-    // Create new Gantt instance
-    try {
-      const gantt = new Gantt(containerRef.current, ganttTasks, {
-        view_mode: viewMode,
-        header_height: 50,
-        column_width: viewMode === 'Day' ? 50 : viewMode === 'Week' ? 80 : 120,
-        step: viewMode === 'Day' ? 24 : viewMode === 'Week' ? 1 : 1,
-        bar_height: 36,
-        bar_corner_radius: 4,
-        arrow_curve: 5,
-        padding: 18,
-        date_format: 'YYYY-MM-DD',
-        language: 'en',
-        on_click: handleTaskChange,
-        on_date_change: handleTaskChange,
-        on_progress_change: handleTaskChange,
-        on_view_change: (mode: ViewMode) => {
-          setViewMode(mode);
-        },
-      });
+    // Wait a bit to ensure DOM is ready
+    setTimeout(() => {
+      if (!containerRef.current) return;
 
-      ganttRef.current = gantt;
-      svgRef.current = containerRef.current.querySelector('svg');
+      // Create new Gantt instance
+      try {
+        console.log('Initializing Gantt with:', {
+          container: containerRef.current,
+          tasks: ganttTasks,
+          viewMode
+        });
 
-      // Format dates to DD.MM format
-      setTimeout(() => {
-        formatDates();
-      }, 200);
-    } catch (error) {
-      console.error('Failed to initialize Gantt:', error);
-      console.error('Error details:', error);
-    }
+        const gantt = new Gantt(containerRef.current, ganttTasks, {
+          view_mode: viewMode,
+          header_height: 50,
+          column_width: viewMode === 'Day' ? 50 : viewMode === 'Week' ? 80 : 120,
+          step: viewMode === 'Day' ? 24 : viewMode === 'Week' ? 1 : 1,
+          bar_height: 36,
+          bar_corner_radius: 4,
+          arrow_curve: 5,
+          padding: 18,
+          date_format: 'YYYY-MM-DD',
+          language: 'en',
+          on_click: handleTaskChange,
+          on_date_change: handleTaskChange,
+          on_progress_change: handleTaskChange,
+          on_view_change: (mode: ViewMode) => {
+            setViewMode(mode);
+          },
+        });
+
+        ganttRef.current = gantt;
+        svgRef.current = containerRef.current.querySelector('svg');
+        
+        console.log('Gantt initialized, SVG:', svgRef.current);
+
+        // Format dates to DD.MM format
+        setTimeout(() => {
+          formatDates();
+        }, 300);
+      } catch (error) {
+        console.error('Failed to initialize Gantt:', error);
+        console.error('Error details:', error);
+        if (error instanceof Error) {
+          console.error('Error stack:', error.stack);
+        }
+      }
+    }, 100);
 
     return () => {
       if (containerRef.current) {
