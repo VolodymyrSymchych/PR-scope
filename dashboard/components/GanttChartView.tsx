@@ -29,14 +29,15 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('Month');
   const containerRef = useRef<HTMLDivElement>(null);
   const ganttRef = useRef<Gantt | null>(null);
-  const svgRef = useRef<SVGSVGElement | null>(null);
 
+  // Load tasks
   useEffect(() => {
     loadTasks();
   }, [projectId]);
 
   const loadTasks = async () => {
     try {
+      setLoading(true);
       const url = projectId ? `/api/tasks?project_id=${projectId}` : '/api/tasks';
       const response = await axios.get(url);
       setTasks(response.data.tasks || []);
@@ -47,6 +48,7 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
     }
   };
 
+  // Convert tasks to Frappe Gantt format
   const convertToGanttTasks = (tasks: TaskData[]) => {
     return tasks
       .filter(task => task.startDate && task.dueDate)
@@ -55,7 +57,6 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
         const end = new Date(task.dueDate!);
         const dependsOn = task.dependsOn ? JSON.parse(task.dependsOn) : [];
         
-        // Determine colors based on status with glassmorphism theme
         let custom_class = 'todo';
         if (task.status === 'done') {
           custom_class = 'done';
@@ -68,102 +69,45 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           name: task.title,
           start: start.toISOString().split('T')[0],
           end: end.toISOString().split('T')[0],
-          progress: task.progress,
+          progress: task.progress || 0,
           custom_class: custom_class,
           dependencies: dependsOn.map((depId: number) => `task-${depId}`),
         };
       });
   };
 
-  const handleTaskChange = (task: any) => {
-    const taskId = parseInt(task.id.replace('task-', ''));
-    const originalTask = tasks.find(t => t.id === taskId);
-    
-    if (!originalTask) return;
-
-    // Parse dates from frappe-gantt format
-    const startDate = new Date(task._start);
-    const endDate = new Date(task._end);
-    const progress = task.progress || 0;
-
-    axios.put(`/api/tasks/${taskId}`, {
-      start_date: startDate.toISOString().split('T')[0],
-      due_date: endDate.toISOString().split('T')[0],
-      progress: progress,
-    }).then(() => {
-      loadTasks();
-    }).catch((error) => {
-      console.error('Failed to update task:', error);
-    });
-  };
-
-  // Initialize and update Gantt chart
+  // Initialize Gantt chart
   useEffect(() => {
-    if (loading || !containerRef.current) {
-      console.log('Waiting for container or loading:', { loading, hasContainer: !!containerRef.current });
-      return;
-    }
+    if (loading || !containerRef.current) return;
 
     const ganttTasks = convertToGanttTasks(tasks);
-    console.log('Gantt tasks:', ganttTasks);
-    
-    if (ganttTasks.length === 0) {
-      console.log('No tasks to display');
-      return;
-    }
+    if (ganttTasks.length === 0) return;
 
-    // Clear container first
+    // Clear container
     containerRef.current.innerHTML = '';
+    ganttRef.current = null;
 
-    // Destroy existing Gantt instance if it exists
-    if (ganttRef.current) {
-      ganttRef.current = null;
+    // Initialize Gantt
+    try {
+      const gantt = new Gantt(containerRef.current, ganttTasks, {
+        view_mode: viewMode,
+        header_height: 50,
+        column_width: viewMode === 'Day' ? 50 : viewMode === 'Week' ? 80 : viewMode === 'Month' ? 120 : 200,
+        bar_height: 36,
+        bar_corner_radius: 4,
+        arrow_curve: 5,
+        padding: 18,
+        date_format: 'YYYY-MM-DD',
+        language: 'en',
+        scroll_to: 'today',
+        today_button: true,
+        popup_on: 'click',
+      });
+
+      ganttRef.current = gantt;
+    } catch (error) {
+      console.error('Failed to initialize Gantt:', error);
     }
-
-    // Wait a bit to ensure DOM is ready
-    setTimeout(() => {
-      if (!containerRef.current) return;
-
-      // Create new Gantt instance
-      try {
-        console.log('Initializing Gantt with:', {
-          container: containerRef.current,
-          tasks: ganttTasks,
-          viewMode
-        });
-
-        const gantt = new Gantt(containerRef.current, ganttTasks, {
-          view_mode: viewMode,
-          header_height: 50,
-          column_width: viewMode === 'Day' ? 50 : viewMode === 'Week' ? 80 : viewMode === 'Month' ? 120 : 200,
-          bar_height: 36,
-          bar_corner_radius: 4,
-          arrow_curve: 5,
-          padding: 18,
-          date_format: 'YYYY-MM-DD',
-          language: 'en',
-          scroll_to: 'today',
-          today_button: true,
-          popup_on: 'click',
-        });
-
-        ganttRef.current = gantt;
-        svgRef.current = containerRef.current.querySelector('svg');
-        
-        console.log('Gantt initialized, SVG:', svgRef.current);
-
-        // Format dates to DD.MM format
-        setTimeout(() => {
-          formatDates();
-        }, 300);
-      } catch (error) {
-        console.error('Failed to initialize Gantt:', error);
-        console.error('Error details:', error);
-        if (error instanceof Error) {
-          console.error('Error stack:', error.stack);
-        }
-      }
-    }, 100);
 
     return () => {
       if (containerRef.current) {
@@ -173,55 +117,10 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
     };
   }, [tasks, viewMode, loading]);
 
-  // Format dates to DD.MM format
-  const formatDates = () => {
-    if (!containerRef.current) return;
-
-    // Format lower text (day numbers)
-    const lowerTexts = containerRef.current.querySelectorAll('svg .lower-text');
-    lowerTexts.forEach((textEl) => {
-      const text = textEl.textContent || '';
-      if (!text || text.includes('.')) return;
-
-      // Try to parse day number
-      const dayMatch = text.match(/^(\d{1,2})$/);
-      if (dayMatch) {
-        const day = parseInt(dayMatch[1]);
-        // Get month from the date context - try to find it from the SVG structure
-        // For now, use a simple approach: get month from current view
-        const now = new Date();
-        const month = now.getMonth() + 1;
-        const formatted = `${day.toString().padStart(2, '0')}.${month.toString().padStart(2, '0')}`;
-        textEl.textContent = formatted;
-      }
-    });
-
-    // Format upper text (month names) - keep them short
-    const upperTexts = containerRef.current.querySelectorAll('svg .upper-text');
-    upperTexts.forEach((textEl) => {
-      const text = textEl.textContent || '';
-      if (text && text.length > 3) {
-        // Shorten month names if needed
-        const monthMap: { [key: string]: string } = {
-          'January': 'JAN', 'February': 'FEB', 'March': 'MAR', 'April': 'APR',
-          'May': 'MAY', 'June': 'JUN', 'July': 'JUL', 'August': 'AUG',
-          'September': 'SEP', 'October': 'OCT', 'November': 'NOV', 'December': 'DEC'
-        };
-        const shortened = monthMap[text] || text.substring(0, 3).toUpperCase();
-        if (shortened !== text) {
-          textEl.textContent = shortened;
-        }
-      }
-    });
-  };
-
-  // Update view mode when changed
+  // Update view mode
   useEffect(() => {
     if (ganttRef.current && !loading) {
       ganttRef.current.change_view_mode(viewMode, false);
-      setTimeout(() => {
-        formatDates();
-      }, 100);
     }
   }, [viewMode, loading]);
 
@@ -247,7 +146,7 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
 
   return (
     <div className="space-y-6 w-full">
-      {/* Controls */}
+      {/* Controls - First */}
       <div className="glass-medium rounded-2xl p-4 border border-white/10 w-full">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
@@ -285,11 +184,21 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
             >
               Month
             </button>
+            <button
+              onClick={() => setViewMode('Year')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                viewMode === 'Year'
+                  ? 'bg-primary text-white shadow-[0_0_15px_rgba(128,152,249,0.5)]'
+                  : 'glass-light text-text-secondary hover:glass-medium hover:text-text-primary'
+              }`}
+            >
+              Year
+            </button>
           </div>
         </div>
       </div>
       
-      {/* Gantt Chart Container */}
+      {/* Gantt Chart Container - After Controls */}
       <div className="glass-medium rounded-2xl p-6 border border-white/10 w-full overflow-hidden">
         <div ref={containerRef} className="gantt-container w-full custom-scrollbar" style={{ minHeight: '400px' }}></div>
       </div>
@@ -313,26 +222,21 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
       </div>
 
       <style jsx global>{`
-        /* Prevent horizontal scroll on page */
         body {
           overflow-x: hidden !important;
         }
 
-        /* Gantt container - base styles */
         .gantt-container {
           background: transparent !important;
           width: 100% !important;
           min-height: 400px !important;
           display: block !important;
-          line-height: 14.5px !important;
           position: relative !important;
           overflow-x: auto !important;
           overflow-y: visible !important;
           font-size: 12px !important;
-          border-radius: 8px !important;
         }
         
-        /* Ensure SVG is visible and properly sized */
         .gantt-container svg.gantt {
           display: block !important;
           visibility: visible !important;
@@ -342,7 +246,6 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           min-height: 400px !important;
         }
 
-        /* Frappe Gantt SVG - allow it to be wider than container */
         .gantt-container svg {
           display: block !important;
           background: transparent !important;
@@ -350,29 +253,21 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           overflow: visible !important;
         }
         
-        /* Ensure grid header scrolls with content */
         .gantt-container .grid-header {
           position: sticky !important;
           top: 0 !important;
           z-index: 10 !important;
           background-color: rgba(255, 255, 255, 0.05) !important;
           backdrop-filter: blur(4px) !important;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
         }
 
-        /* Grid background */
         .gantt-container svg .grid-background {
           fill: rgba(255, 255, 255, 0.02) !important;
         }
 
         .gantt-container svg .grid-row {
           fill: rgba(255, 255, 255, 0.02) !important;
-        }
-
-        /* Grid header */
-        .gantt-container .grid-header {
-          background-color: rgba(255, 255, 255, 0.05) !important;
-          backdrop-filter: blur(4px) !important;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
         }
 
         .gantt-container svg .row-line {
@@ -390,21 +285,18 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           stroke-width: 1px !important;
         }
 
-        /* Today highlight */
         .gantt-container svg .today-highlight,
         .gantt-container .current-highlight {
           background: rgba(128, 152, 249, 0.15) !important;
           stroke: rgba(128, 152, 249, 0.3) !important;
         }
 
-        /* Calendar text */
         .gantt-container .upper-text,
         .gantt-container .lower-text {
           fill: rgba(255, 255, 255, 0.8) !important;
           font-size: 10px !important;
           font-weight: 500 !important;
           font-family: inherit !important;
-          color: rgba(255, 255, 255, 0.8) !important;
         }
 
         .gantt-container .upper-text {
@@ -414,7 +306,6 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           color: rgba(255, 255, 255, 0.9) !important;
         }
 
-        /* Task bars */
         .gantt-container svg .bar-wrapper {
           cursor: pointer !important;
         }
@@ -432,7 +323,6 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           opacity: 0.9 !important;
         }
 
-        /* Task bar colors based on status */
         .gantt-container svg .bar.todo {
           fill: rgba(107, 114, 128, 0.8) !important;
         }
@@ -445,14 +335,12 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           fill: rgba(16, 185, 129, 0.85) !important;
         }
 
-        /* Progress bar */
         .gantt-container svg .bar-progress {
           fill: rgba(255, 255, 255, 0.3) !important;
           rx: 4px !important;
           ry: 4px !important;
         }
 
-        /* Task labels */
         .gantt-container svg .bar-label {
           fill: rgba(255, 255, 255, 0.95) !important;
           font-weight: 500 !important;
@@ -460,14 +348,12 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
         }
 
-        /* Dependency arrows */
         .gantt-container svg .arrow {
           stroke: rgba(128, 152, 249, 0.6) !important;
           fill: rgba(128, 152, 249, 0.6) !important;
           stroke-width: 2px !important;
         }
 
-        /* Handles */
         .gantt-container svg .handle {
           fill: rgba(255, 255, 255, 0.3) !important;
           stroke: rgba(255, 255, 255, 0.5) !important;
@@ -480,7 +366,6 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           cursor: ew-resize !important;
         }
 
-        /* Custom scrollbar */
         .custom-scrollbar::-webkit-scrollbar {
           height: 8px;
         }
