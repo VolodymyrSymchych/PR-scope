@@ -21,7 +21,7 @@ interface GanttChartViewProps {
   projectId?: number;
 }
 
-type ViewMode = 'Quarter Day' | 'Half Day' | 'Day' | 'Week' | 'Month';
+type ViewMode = 'Day' | 'Week' | 'Month' | 'Year';
 
 export function GanttChartView({ projectId }: GanttChartViewProps) {
   const [tasks, setTasks] = useState<TaskData[]>([]);
@@ -135,20 +135,16 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
         const gantt = new Gantt(containerRef.current, ganttTasks, {
           view_mode: viewMode,
           header_height: 50,
-          column_width: viewMode === 'Day' ? 50 : viewMode === 'Week' ? 80 : 120,
-          step: viewMode === 'Day' ? 24 : viewMode === 'Week' ? 1 : 1,
+          column_width: viewMode === 'Day' ? 50 : viewMode === 'Week' ? 80 : viewMode === 'Month' ? 120 : 200,
           bar_height: 36,
           bar_corner_radius: 4,
           arrow_curve: 5,
           padding: 18,
           date_format: 'YYYY-MM-DD',
           language: 'en',
-          on_click: handleTaskChange,
-          on_date_change: handleTaskChange,
-          on_progress_change: handleTaskChange,
-          on_view_change: (mode: ViewMode) => {
-            setViewMode(mode);
-          },
+          scroll_to: 'today',
+          today_button: true,
+          popup_on: 'click',
         });
 
         ganttRef.current = gantt;
@@ -221,13 +217,13 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
 
   // Update view mode when changed
   useEffect(() => {
-    if (ganttRef.current) {
-      ganttRef.current.change_view_mode(viewMode);
+    if (ganttRef.current && !loading) {
+      ganttRef.current.change_view_mode(viewMode, false);
       setTimeout(() => {
         formatDates();
       }, 100);
     }
-  }, [viewMode]);
+  }, [viewMode, loading]);
 
   if (loading) {
     return (
@@ -294,10 +290,8 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
       </div>
       
       {/* Gantt Chart Container */}
-      <div className="glass-medium rounded-2xl p-6 border border-white/10 w-full overflow-hidden" style={{ width: '100%', maxWidth: '100%' }}>
-        <div className="w-full overflow-x-auto overflow-y-visible custom-scrollbar" style={{ width: '100%' }}>
-          <div ref={containerRef} className="gantt-container w-full" style={{ minWidth: '100%', minHeight: '400px', height: 'auto' }}></div>
-        </div>
+      <div className="glass-medium rounded-2xl p-6 border border-white/10 w-full" style={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+        <div ref={containerRef} className="gantt-container w-full custom-scrollbar" style={{ minWidth: '100%', minHeight: '400px', height: 'auto' }}></div>
       </div>
 
       {/* Legend */}
@@ -334,7 +328,8 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           display: block !important;
           line-height: 14.5px !important;
           position: relative !important;
-          overflow: visible !important;
+          overflow-x: auto !important;
+          overflow-y: visible !important;
           font-size: 12px !important;
           border-radius: 8px !important;
         }
@@ -344,14 +339,25 @@ export function GanttChartView({ projectId }: GanttChartViewProps) {
           display: block !important;
           visibility: visible !important;
           opacity: 1 !important;
+          width: auto !important;
+          min-width: 100% !important;
+          height: auto !important;
         }
 
         /* Frappe Gantt SVG */
         .gantt-container svg {
-          width: 100% !important;
+          width: auto !important;
           min-width: 100% !important;
           background: transparent !important;
           font-family: inherit !important;
+          display: block !important;
+          overflow: visible !important;
+        }
+        
+        /* Grid header container */
+        .gantt-container .grid-header {
+          overflow-x: auto !important;
+          overflow-y: visible !important;
         }
 
         /* Grid background */
