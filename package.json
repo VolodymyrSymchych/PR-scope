@@ -13,18 +13,20 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.927.0",
-    "@aws-sdk/s3-request-presigner": "^3.927.0",
     "@aws-crypto/crc32": "^5.2.0",
     "@aws-crypto/crc32c": "^5.2.0",
     "@aws-crypto/util": "^5.2.0",
+    "@aws-sdk/client-s3": "^3.927.0",
+    "@aws-sdk/s3-request-presigner": "^3.927.0",
     "@neondatabase/serverless": "^1.0.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/ws": "^8.18.1",
     "bcryptjs": "^3.0.3",
+    "dotenv": "^17.2.3",
     "drizzle-orm": "^0.44.7",
     "jose": "^6.1.0",
     "nanoid": "^5.1.6",
+    "pg": "^8.16.3",
     "ws": "^8.18.3"
   },
   "devDependencies": {

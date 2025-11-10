@@ -45,7 +45,7 @@ export function FileUploader({
             formData.append('taskId', taskId.toString());
           }
 
-          await axios.post('/api/files/upload', formData, {
+          await axios.post('/api/files', formData, {
             headers: {
               'Content-Type': 'multipart/form-data',
             },
