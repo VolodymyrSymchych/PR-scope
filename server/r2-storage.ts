@@ -1,24 +1,26 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl as generateSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
-const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
-const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME;
-const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
+// Use AWS_ prefix for compatibility with AWS SDK standard
+const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
+const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY;
+const AWS_ENDPOINT = process.env.AWS_ENDPOINT;
+const AWS_BUCKET_NAME = process.env.AWS_BUCKET_NAME;
+const AWS_REGION = process.env.AWS_REGION || 'auto';
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL; // Optional: for public URLs
 
-if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_BUCKET_NAME) {
+if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY || !AWS_ENDPOINT || !AWS_BUCKET_NAME) {
   console.warn('R2 credentials not configured. File uploads will not work.');
 }
 
 // Initialize S3 client for Cloudflare R2
-const s3Client = R2_ACCOUNT_ID && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY
+const s3Client = AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY && AWS_ENDPOINT
   ? new S3Client({
-      region: 'auto',
-      endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      region: AWS_REGION,
+      endpoint: AWS_ENDPOINT,
       credentials: {
-        accessKeyId: R2_ACCESS_KEY_ID,
-        secretAccessKey: R2_SECRET_ACCESS_KEY,
+        accessKeyId: AWS_ACCESS_KEY_ID,
+        secretAccessKey: AWS_SECRET_ACCESS_KEY,
       },
     })
   : null;
@@ -37,7 +39,7 @@ export async function uploadFile(
   contentType: string,
   folder: string = 'uploads'
 ): Promise<UploadFileResult> {
-  if (!s3Client || !R2_BUCKET_NAME) {
+  if (!s3Client || !AWS_BUCKET_NAME) {
     throw new Error('R2 storage is not configured');
   }
 
@@ -48,7 +50,7 @@ export async function uploadFile(
 
   try {
     const command = new PutObjectCommand({
-      Bucket: R2_BUCKET_NAME,
+      Bucket: AWS_BUCKET_NAME,
       Key: key,
       Body: file,
       ContentType: contentType,
@@ -72,13 +74,13 @@ export async function uploadFile(
  * Delete a file from Cloudflare R2
  */
 export async function deleteFile(key: string): Promise<void> {
-  if (!s3Client || !R2_BUCKET_NAME) {
+  if (!s3Client || !AWS_BUCKET_NAME) {
     throw new Error('R2 storage is not configured');
   }
 
   try {
     const command = new DeleteObjectCommand({
-      Bucket: R2_BUCKET_NAME,
+      Bucket: AWS_BUCKET_NAME,
       Key: key,
     });
 
@@ -93,13 +95,13 @@ export async function deleteFile(key: string): Promise<void> {
  * Generate a signed URL for downloading a file (valid for 1 hour)
  */
 export async function getSignedUrl(key: string, expiresIn: number = 3600): Promise<string> {
-  if (!s3Client || !R2_BUCKET_NAME) {
+  if (!s3Client || !AWS_BUCKET_NAME) {
     throw new Error('R2 storage is not configured');
   }
 
   try {
     const command = new GetObjectCommand({
-      Bucket: R2_BUCKET_NAME,
+      Bucket: AWS_BUCKET_NAME,
       Key: key,
     });
 
