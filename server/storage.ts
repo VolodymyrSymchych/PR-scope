@@ -390,6 +390,129 @@ export class DatabaseStorage {
     await db.delete(tasks).where(eq(tasks.id, taskId));
   }
 
+  // Subtasks
+  async getSubtasks(parentId: number): Promise<Task[]> {
+    return await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.parentId, parentId))
+      .orderBy(desc(tasks.createdAt));
+  }
+
+  async createSubtask(parentId: number, data: Omit<InsertTask, 'parentId'>): Promise<Task> {
+    const [subtask] = await db
+      .insert(tasks)
+      .values({ ...data, parentId })
+      .returning();
+
+    // Update parent date range if subtask extends beyond parent dates
+    await this.updateParentDateRange(parentId);
+
+    return subtask;
+  }
+
+  async getTaskWithSubtasks(taskId: number): Promise<(Task & { subtasks: Task[] }) | undefined> {
+    const task = await this.getTask(taskId);
+    if (!task) return undefined;
+
+    const subtasks = await this.getSubtasks(taskId);
+    return { ...task, subtasks };
+  }
+
+  async updateParentDateRange(parentId: number): Promise<void> {
+    const parent = await this.getTask(parentId);
+    if (!parent) return;
+
+    const subtasks = await this.getSubtasks(parentId);
+    if (subtasks.length === 0) return;
+
+    // Find min startDate and max endDate among subtasks
+    let minStart = parent.startDate;
+    let maxEnd = parent.endDate;
+
+    subtasks.forEach((subtask) => {
+      if (subtask.startDate) {
+        if (!minStart || subtask.startDate < minStart) {
+          minStart = subtask.startDate;
+        }
+      }
+      if (subtask.endDate) {
+        if (!maxEnd || subtask.endDate > maxEnd) {
+          maxEnd = subtask.endDate;
+        }
+      }
+    });
+
+    // Update parent if dates changed
+    if (
+      (minStart && minStart.getTime() !== parent.startDate?.getTime()) ||
+      (maxEnd && maxEnd.getTime() !== parent.endDate?.getTime())
+    ) {
+      await this.updateTask(parentId, {
+        startDate: minStart || parent.startDate,
+        endDate: maxEnd || parent.endDate,
+      });
+    }
+  }
+
+  async shiftSubtasks(parentId: number, daysDelta: number): Promise<void> {
+    const subtasks = await this.getSubtasks(parentId);
+
+    for (const subtask of subtasks) {
+      const updates: Partial<InsertTask> = {};
+
+      if (subtask.startDate) {
+        const newStart = new Date(subtask.startDate);
+        newStart.setDate(newStart.getDate() + daysDelta);
+        updates.startDate = newStart;
+      }
+
+      if (subtask.endDate) {
+        const newEnd = new Date(subtask.endDate);
+        newEnd.setDate(newEnd.getDate() + daysDelta);
+        updates.endDate = newEnd;
+      }
+
+      if (subtask.dueDate) {
+        const newDue = new Date(subtask.dueDate);
+        newDue.setDate(newDue.getDate() + daysDelta);
+        updates.dueDate = newDue;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await this.updateTask(subtask.id, updates);
+      }
+    }
+  }
+
+  async userCanManageTask(userId: number, taskId: number): Promise<boolean> {
+    const task = await this.getTask(taskId);
+    if (!task) return false;
+
+    // Check if user owns the project
+    if (task.projectId) {
+      return await this.userHasProjectAccess(userId, task.projectId);
+    }
+
+    // Or if user created the task
+    return task.userId === userId;
+  }
+
+  async userIsTaskAssignee(userId: number, taskId: number): Promise<boolean> {
+    const task = await this.getTask(taskId);
+    if (!task) return false;
+
+    // Check if user's ID matches task's userId or if their username/email matches assignee
+    if (task.userId === userId) return true;
+
+    if (task.assignee) {
+      const user = await this.getUser(userId);
+      return user ? (user.username === task.assignee || user.email === task.assignee) : false;
+    }
+
+    return false;
+  }
+
   // Time Entries
   async getTimeEntries(userId?: number, taskId?: number): Promise<TimeEntry[]> {
     if (userId && taskId) {

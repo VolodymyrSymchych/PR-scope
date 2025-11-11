@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { storage } from '../../../../../server/storage';
+import { invalidateUserCache } from '@/lib/redis';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,7 +41,13 @@ export async function PUT(
 
     const id = parseInt(params.id);
     const data = await request.json();
-    
+
+    // Get original task to calculate date delta
+    const originalTask = await storage.getTask(id);
+    if (!originalTask) {
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    }
+
     const updateData: any = {};
     if (data.status) updateData.status = data.status;
     if (data.title) updateData.title = data.title;
@@ -56,11 +63,32 @@ export async function PUT(
     }
     if (data.progress !== undefined) updateData.progress = data.progress;
 
+    // Calculate days delta if start_date changed and shift_subtasks flag is set
+    let daysDelta = 0;
+    if (data.shift_subtasks && data.start_date && originalTask.startDate) {
+      const newStart = new Date(data.start_date);
+      const oldStart = new Date(originalTask.startDate);
+      daysDelta = Math.round((newStart.getTime() - oldStart.getTime()) / (1000 * 60 * 60 * 24));
+    }
+
     const task = await storage.updateTask(id, updateData);
 
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
+
+    // Shift subtasks if requested and dates changed
+    if (data.shift_subtasks && daysDelta !== 0) {
+      await storage.shiftSubtasks(id, daysDelta);
+    }
+
+    // If this is a subtask, update parent date range
+    if (task.parentId && (data.start_date !== undefined || data.end_date !== undefined)) {
+      await storage.updateParentDateRange(task.parentId);
+    }
+
+    // Invalidate user caches after updating task
+    await invalidateUserCache(session.userId);
 
     return NextResponse.json({ task });
   } catch (error: any) {
@@ -81,6 +109,9 @@ export async function DELETE(
 
     const id = parseInt(params.id);
     await storage.deleteTask(id);
+
+    // Invalidate user caches after deleting task
+    await invalidateUserCache(session.userId);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

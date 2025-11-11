@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useMemo, ReactNode, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useMemo, useRef, ReactNode, useCallback, useEffect } from 'react';
 import { startOfMonth, endOfMonth, eachDayOfInterval, eachMonthOfInterval, eachWeekOfInterval, eachYearOfInterval, eachQuarterOfInterval, addDays, addMonths, addWeeks, addQuarters, addYears, startOfWeek, endOfWeek, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from 'date-fns';
 
 export interface GanttFeature {
@@ -17,6 +17,8 @@ export interface GanttFeature {
   metadata?: Record<string, any>;
   parentId?: string;
   children?: GanttFeature[];
+  assignee?: string;
+  workedHours?: number;
 }
 
 export interface GanttMarker {
@@ -47,9 +49,12 @@ interface GanttContextValue {
   onAddItem?: (date: Date) => void;
   onMoveItem?: (id: string, startAt: Date, endAt: Date | null) => void;
   extendRange?: (direction: 'left' | 'right', amount: number) => void;
-  visibleStartDate: Date;
-  visibleEndDate: Date;
-  firstDate: Date; // First date in the arrays for synchronization
+  firstDate: Date; // First date in the arrays (always baseStartDate)
+  isExtendingRange: boolean; // Loading indicator when extending range
+  dateRangeStart: Date; // Current visible range start
+  dateRangeEnd: Date; // Current visible range end
+  collapsedTasks: Set<string>; // Set of collapsed parent task IDs
+  toggleCollapsed: (taskId: string) => void;
 }
 
 const GanttContext = createContext<GanttContextValue | undefined>(undefined);
@@ -81,245 +86,329 @@ export function GanttProvider({
   onMoveItem,
   features = [],
 }: GanttProviderProps) {
-  const [currentDate] = useState(new Date());
-  
-  // Base dates for infinite scroll (2000-2040)
+  // Base dates for fixed range (2000-2040)
   const baseStartYear = 2000;
   const baseEndYear = 2040;
   const baseStartDate = useMemo(() => new Date(baseStartYear, 0, 1), []);
   const baseEndDate = useMemo(() => new Date(baseEndYear, 11, 31), []);
   
-  // Calculate initial dates - always center around current date
-  const calculateInitialDates = () => {
-    // Always center around current date, regardless of features
-    let start: Date;
-    let end: Date;
+  // Current date for initial range calculation
+  const currentDate = useMemo(() => new Date(), []);
+  
+  // Initial range: current date ± 2 years
+  const initialRangeStart = useMemo(() => {
+    return startOfYear(addYears(currentDate, -2));
+  }, [currentDate]);
+  
+  const initialRangeEnd = useMemo(() => {
+    return endOfYear(addYears(currentDate, 2));
+  }, [currentDate]);
+  
+  // State for current date range (starts with ±2 years, expands on scroll)
+  const [dateRangeStart, setDateRangeStart] = useState(() => {
+    return initialRangeStart < baseStartDate ? baseStartDate : initialRangeStart;
+  });
+  
+  const [dateRangeEnd, setDateRangeEnd] = useState(() => {
+    return initialRangeEnd > baseEndDate ? baseEndDate : initialRangeEnd;
+  });
+  
+  // Cache for calculated dates - key: `${viewMode}-${startTime}-${endTime}`
+  // Use larger cache size for better performance
+  const datesCacheRef = useRef<Map<string, Date[]>>(new Map());
+  
+  // Pre-calculate common ranges on mount for instant switching
+  useEffect(() => {
+    const currentDate = new Date();
+    const commonRanges = [
+      // Days: ±1 month
+      { mode: 'days', start: addDays(currentDate, -30), end: addDays(currentDate, 30) },
+      // Weeks: ±1 year
+      { mode: 'weeks', start: startOfWeek(addWeeks(currentDate, -52), { weekStartsOn: 1 }), end: endOfWeek(addWeeks(currentDate, 52), { weekStartsOn: 1 }) },
+      // Months: ±2 years
+      { mode: 'months', start: startOfMonth(addMonths(currentDate, -24)), end: endOfMonth(addMonths(currentDate, 24)) },
+      // Quarters: ±3 years
+      { mode: 'quarters', start: startOfQuarter(addQuarters(currentDate, -12)), end: endOfQuarter(addQuarters(currentDate, 12)) },
+      // Years: ±5 years
+      { mode: 'years', start: startOfYear(addYears(currentDate, -5)), end: endOfYear(addYears(currentDate, 5)) },
+    ];
+    
+    // Pre-calculate in background using requestIdleCallback
+    const precalculateDates = () => {
+      commonRanges.forEach(({ mode, start, end }) => {
+        const cacheKey = `${mode}-${start.getTime()}-${end.getTime()}`;
+        if (!datesCacheRef.current.has(cacheKey)) {
+          let dates: Date[];
+          switch (mode) {
+            case 'days':
+              dates = eachDayOfInterval({ start, end });
+              break;
+            case 'weeks':
+              dates = eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
+              break;
+            case 'months':
+              dates = eachMonthOfInterval({ start, end });
+              break;
+            case 'quarters':
+              dates = eachQuarterOfInterval({ start, end });
+              break;
+            case 'years':
+              dates = eachYearOfInterval({ start, end });
+              break;
+            default:
+              dates = [];
+          }
+          datesCacheRef.current.set(cacheKey, dates);
+        }
+      });
+    };
+    
+    // Use requestIdleCallback if available, otherwise setTimeout
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      requestIdleCallback(precalculateDates, { timeout: 2000 });
+    } else {
+      setTimeout(precalculateDates, 100);
+    }
+  }, []);
+  
+  // Reset range when view mode changes - ensure current date is included
+  useEffect(() => {
+    // Calculate proper range for current view mode to include current date
+    let newStart: Date;
+    let newEnd: Date;
     
     switch (range) {
       case 'daily':
-        start = addDays(currentDate, -15);
-        end = addDays(currentDate, 30);
+        newStart = addDays(currentDate, -30); // ±1 month
+        newEnd = addDays(currentDate, 30);
         break;
       case 'weekly':
-        start = startOfWeek(addWeeks(currentDate, -6));
-        end = endOfWeek(addWeeks(currentDate, 6));
+        newStart = startOfWeek(addWeeks(currentDate, -52), { weekStartsOn: 1 }); // ±1 year
+        newEnd = endOfWeek(addWeeks(currentDate, 52), { weekStartsOn: 1 });
         break;
       case 'monthly':
-        start = startOfMonth(addMonths(currentDate, -6));
-        end = endOfMonth(addMonths(currentDate, 6));
+        newStart = startOfMonth(addMonths(currentDate, -24)); // ±2 years
+        newEnd = endOfMonth(addMonths(currentDate, 24));
         break;
       case 'quarterly':
-        start = startOfQuarter(addQuarters(currentDate, -4));
-        end = endOfQuarter(addQuarters(currentDate, 4));
+        newStart = startOfQuarter(addQuarters(currentDate, -12)); // ±3 years
+        newEnd = endOfQuarter(addQuarters(currentDate, 12));
         break;
       case 'yearly':
-        start = startOfYear(addYears(currentDate, -3));
-        end = endOfYear(addYears(currentDate, 3));
+        newStart = startOfYear(addYears(currentDate, -5)); // ±5 years
+        newEnd = endOfYear(addYears(currentDate, 5));
         break;
       default:
-        start = startOfMonth(addMonths(currentDate, -6));
-        end = endOfMonth(addMonths(currentDate, 6));
+        newStart = initialRangeStart;
+        newEnd = initialRangeEnd;
     }
     
-    return { start, end };
-  };
-  
-  // Calculate initial dates for centering
-  const initialDates = calculateInitialDates();
-  const [visibleStartDate, setVisibleStartDate] = useState(() => {
-    const start = initialDates.start < baseStartDate ? baseStartDate : initialDates.start;
-    return start;
-  });
-  const [visibleEndDate, setVisibleEndDate] = useState(() => {
-    const end = initialDates.end > baseEndDate ? baseEndDate : initialDates.end;
-    return end;
-  });
-  
-  // Update visible dates to center around current date when range changes
-  useEffect(() => {
-    const newDates = calculateInitialDates();
-    setVisibleStartDate(newDates.start < baseStartDate ? baseStartDate : newDates.start);
-    setVisibleEndDate(newDates.end > baseEndDate ? baseEndDate : newDates.end);
-  }, [range, currentDate, baseStartDate, baseEndDate]);
-
-  // Calculate actual startDate for position calculations
-  // Use baseStartDate as reference point for synchronization with header
-  // This ensures header and rows use the same reference point
-  const actualStartDate = useMemo(() => {
-    // Always use baseStartDate as the reference point for consistency
-    // This ensures header dates and task positions are synchronized
-    return baseStartDate;
-  }, [baseStartDate]);
-
-  // Extend range function - extend visible dates with large buffer to prevent duplicates
-  const extendRange = useCallback((direction: 'left' | 'right', amount: number) => {
-    setVisibleStartDate(prev => {
-      if (direction === 'left') {
-        // Extend more aggressively to prevent duplicates
-        const extendAmount = amount * 2; // Double the amount for buffer
-        const newStart = (() => {
-          switch (range) {
-            case 'daily':
-              return addDays(prev, -extendAmount);
-            case 'weekly':
-              return startOfWeek(addWeeks(prev, -extendAmount));
-            case 'monthly':
-              return startOfMonth(addMonths(prev, -extendAmount));
-            case 'quarterly':
-              return startOfQuarter(addQuarters(prev, -extendAmount));
-            case 'yearly':
-              return startOfYear(addYears(prev, -extendAmount));
-            default:
-              return addDays(prev, -extendAmount);
-          }
-        })();
-        // Don't go before base start date
-        return newStart < baseStartDate ? baseStartDate : newStart;
-      }
-      return prev;
-    });
+    const clampedStart = newStart < baseStartDate ? baseStartDate : newStart;
+    const clampedEnd = newEnd > baseEndDate ? baseEndDate : newEnd;
     
-    setVisibleEndDate(prev => {
-      if (direction === 'right') {
-        // Extend more aggressively to prevent duplicates
-        const extendAmount = amount * 2; // Double the amount for buffer
-        const newEnd = (() => {
-          switch (range) {
-            case 'daily':
-              return addDays(prev, extendAmount);
-            case 'weekly':
-              return endOfWeek(addWeeks(prev, extendAmount));
-            case 'monthly':
-              return endOfMonth(addMonths(prev, extendAmount));
-            case 'quarterly':
-              return endOfQuarter(addQuarters(prev, extendAmount));
-            case 'yearly':
-              return endOfYear(addYears(prev, extendAmount));
-            default:
-              return addDays(prev, extendAmount);
-          }
-        })();
-        // Don't go after base end date
-        return newEnd > baseEndDate ? baseEndDate : newEnd;
-      }
-      return prev;
-    });
-  }, [range, baseStartDate, baseEndDate]);
-
-  const { startDate, endDate, days, weeks, months, quarters, years, viewMode, firstDate } = useMemo(() => {
-    let mode: 'days' | 'weeks' | 'months' | 'quarters' | 'years' = 'days';
-
-    // Determine view mode based on range
+    setDateRangeStart(clampedStart);
+    setDateRangeEnd(clampedEnd);
+  }, [range, currentDate, baseStartDate, baseEndDate, initialRangeStart, initialRangeEnd]);
+  
+  // Determine view mode based on range
+  const viewMode = useMemo(() => {
     switch (range) {
       case 'weekly':
-        mode = 'weeks';
-        break;
+        return 'weeks' as const;
       case 'monthly':
-        mode = 'months';
-        break;
+        return 'months' as const;
       case 'quarterly':
-        mode = 'quarters';
-        break;
+        return 'quarters' as const;
       case 'yearly':
-        mode = 'years';
+        return 'years' as const;
+      default:
+        return 'days' as const;
+    }
+  }, [range]);
+  
+  // Calculate dates ONLY for the current view mode and current range
+  // Use cache to avoid recalculating same ranges
+  const allDates = useMemo(() => {
+    const start = dateRangeStart;
+    const end = dateRangeEnd;
+    
+    // Create cache key
+    const cacheKey = `${viewMode}-${start.getTime()}-${end.getTime()}`;
+    
+    // Check cache first
+    const cached = datesCacheRef.current.get(cacheKey);
+    if (cached) {
+      // Return cached data
+      switch (viewMode) {
+        case 'days':
+          return { days: cached, weeks: [], months: [], quarters: [], years: [] };
+        case 'weeks':
+          return { days: [], weeks: cached, months: [], quarters: [], years: [] };
+        case 'months':
+          return { days: [], weeks: [], months: cached, quarters: [], years: [] };
+        case 'quarters':
+          return { days: [], weeks: [], months: [], quarters: cached, years: [] };
+        case 'years':
+          return { days: [], weeks: [], months: [], quarters: [], years: cached };
+        default:
+          return { days: [], weeks: [], months: [], quarters: [], years: [] };
+      }
+    }
+    
+    // Calculate dates for the current view mode
+    let calculatedDates: Date[];
+    switch (viewMode) {
+      case 'days':
+        calculatedDates = eachDayOfInterval({ start, end });
+        break;
+      case 'weeks':
+        calculatedDates = eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
+        break;
+      case 'months':
+        calculatedDates = eachMonthOfInterval({ start, end });
+        break;
+      case 'quarters':
+        calculatedDates = eachQuarterOfInterval({ start, end });
+        break;
+      case 'years':
+        calculatedDates = eachYearOfInterval({ start, end });
         break;
       default:
-        mode = 'days';
+        calculatedDates = [];
     }
-
-    // Generate dates for visible range with buffer to prevent duplicates
-    // Use a smaller buffer for better initial positioning
-    const bufferMultiplier = 2; // Reduced from 3 to prevent starting too far back
-    const rangeDuration = visibleEndDate.getTime() - visibleStartDate.getTime();
-    const bufferDuration = rangeDuration * bufferMultiplier;
     
-    const bufferStart = new Date(visibleStartDate.getTime() - bufferDuration);
-    const bufferEnd = new Date(visibleEndDate.getTime() + bufferDuration);
+    // Store in cache (limit cache size to prevent memory issues - increased to 100)
+    if (datesCacheRef.current.size > 100) {
+      // Remove oldest entries (first 20)
+      const keysToDelete = Array.from(datesCacheRef.current.keys()).slice(0, 20);
+      keysToDelete.forEach(key => datesCacheRef.current.delete(key));
+    }
+    datesCacheRef.current.set(cacheKey, calculatedDates);
     
-    const start = bufferStart < baseStartDate ? baseStartDate : bufferStart;
-    const end = bufferEnd > baseEndDate ? baseEndDate : bufferEnd;
-
-    // Generate dates only for the buffered range
-    const daysArray = range === 'daily' ? eachDayOfInterval({ start, end }) : [];
-    const weeksArray = range === 'weekly' ? eachWeekOfInterval({ start, end }) : [];
-    const monthsArray = range === 'monthly' ? eachMonthOfInterval({ start, end }) : [];
-    const quartersArray = range === 'quarterly' ? eachQuarterOfInterval({ start, end }) : [];
-    const yearsArray = range === 'yearly' ? eachYearOfInterval({ start, end }) : [];
-
-    // Use visibleStartDate as firstDate for synchronization, not the first element of buffered array
-    // This ensures header starts from the visible range, not from the buffer start
-    // But we need to find the closest date in the array to visibleStartDate
-    const getFirstDateFromArray = (dateArray: Date[]): Date => {
-      if (dateArray.length === 0) return visibleStartDate;
+    // Return calculated data
+    switch (viewMode) {
+      case 'days':
+        return { days: calculatedDates, weeks: [], months: [], quarters: [], years: [] };
+      case 'weeks':
+        return { days: [], weeks: calculatedDates, months: [], quarters: [], years: [] };
+      case 'months':
+        return { days: [], weeks: [], months: calculatedDates, quarters: [], years: [] };
+      case 'quarters':
+        return { days: [], weeks: [], months: [], quarters: calculatedDates, years: [] };
+      case 'years':
+        return { days: [], weeks: [], months: [], quarters: [], years: calculatedDates };
+      default:
+        return { days: [], weeks: [], months: [], quarters: [], years: [] };
+    }
+  }, [dateRangeStart, dateRangeEnd, viewMode]);
+  
+  // State for loading indicator when extending range
+  const [isExtendingRange, setIsExtendingRange] = useState(false);
+  
+  // Extend range function - called when scrolling near edges
+  // Optimized: batch state updates for better performance
+  const extendRange = useCallback((direction: 'left' | 'right', amount: number) => {
+    setIsExtendingRange(true);
+    
+    // Batch state updates for better performance
+    requestAnimationFrame(() => {
+      setDateRangeStart(prev => {
+        if (direction === 'left') {
+          const newStart = (() => {
+            switch (viewMode) {
+              case 'days':
+                return addDays(prev, -amount);
+              case 'weeks':
+                return startOfWeek(addWeeks(prev, -amount), { weekStartsOn: 1 });
+              case 'months':
+                return startOfMonth(addMonths(prev, -amount));
+              case 'quarters':
+                return startOfQuarter(addQuarters(prev, -amount));
+              case 'years':
+                return startOfYear(addYears(prev, -amount));
+              default:
+                return addDays(prev, -amount);
+            }
+          })();
+          return newStart < baseStartDate ? baseStartDate : newStart;
+        }
+        return prev;
+      });
       
-      // Find the date in array that is closest to or before visibleStartDate
-      // For months/quarters/years, find the one that contains visibleStartDate
-      switch (mode) {
-        case 'months': {
-          const visibleYear = visibleStartDate.getFullYear();
-          const visibleMonth = visibleStartDate.getMonth();
-          const found = dateArray.find(d => d.getFullYear() === visibleYear && d.getMonth() === visibleMonth);
-          return found || dateArray[0];
+      setDateRangeEnd(prev => {
+        if (direction === 'right') {
+          const newEnd = (() => {
+            switch (viewMode) {
+              case 'days':
+                return addDays(prev, amount);
+              case 'weeks':
+                return endOfWeek(addWeeks(prev, amount), { weekStartsOn: 1 });
+              case 'months':
+                return endOfMonth(addMonths(prev, amount));
+              case 'quarters':
+                return endOfQuarter(addQuarters(prev, amount));
+              case 'years':
+                return endOfYear(addYears(prev, amount));
+              default:
+                return addDays(prev, amount);
+            }
+          })();
+          return newEnd > baseEndDate ? baseEndDate : newEnd;
         }
-        case 'quarters': {
-          const visibleYear = visibleStartDate.getFullYear();
-          const visibleQuarterMonth = Math.floor(visibleStartDate.getMonth() / 3) * 3;
-          const found = dateArray.find(d => {
-            const dYear = d.getFullYear();
-            const dMonth = d.getMonth();
-            return dYear === visibleYear && Math.floor(dMonth / 3) * 3 === visibleQuarterMonth;
-          });
-          return found || dateArray[0];
-        }
-        case 'years': {
-          const visibleYear = visibleStartDate.getFullYear();
-          const found = dateArray.find(d => d.getFullYear() === visibleYear);
-          return found || dateArray[0];
-        }
-        case 'weeks': {
-          // For weeks, find the week that contains visibleStartDate
-          const found = dateArray.find(d => {
-            const weekStart = startOfWeek(d);
-            const weekEnd = endOfWeek(d);
-            return visibleStartDate >= weekStart && visibleStartDate <= weekEnd;
-          });
-          return found || dateArray[0];
-        }
-        default:
-          // For days, find exact match or closest
-          const found = dateArray.find(d => d.getTime() === visibleStartDate.getTime());
-          return found || dateArray[0];
-      }
-    };
+        return prev;
+      });
+      
+      // Reset loading indicator faster for better UX
+      setTimeout(() => setIsExtendingRange(false), 150);
+    });
+  }, [viewMode, baseStartDate, baseEndDate]);
+  
+  // Get the appropriate date array based on view mode
+  const { days, weeks, months, quarters, years } = allDates;
+  
+  // First date is the actual first date in the arrays (dateRangeStart)
+  // But for position calculations, we still use baseStartDate as reference
+  const firstDate = (() => {
+    switch (viewMode) {
+      case 'days':
+        return days.length > 0 ? days[0] : baseStartDate;
+      case 'weeks':
+        return weeks.length > 0 ? weeks[0] : baseStartDate;
+      case 'months':
+        return months.length > 0 ? months[0] : baseStartDate;
+      case 'quarters':
+        return quarters.length > 0 ? quarters[0] : baseStartDate;
+      case 'years':
+        return years.length > 0 ? years[0] : baseStartDate;
+      default:
+        return baseStartDate;
+    }
+  })();
 
-    const firstDateInArray = daysArray[0] || weeksArray[0] || monthsArray[0] || quartersArray[0] || yearsArray[0];
-    const firstDate = firstDateInArray ? getFirstDateFromArray(
-      daysArray.length > 0 ? daysArray :
-      weeksArray.length > 0 ? weeksArray :
-      monthsArray.length > 0 ? monthsArray :
-      quartersArray.length > 0 ? quartersArray :
-      yearsArray
-    ) : visibleStartDate;
-
-    return {
-      startDate: actualStartDate, // Use baseStartDate as reference point for position calculations
-      endDate: baseEndDate, // Always use base end for calculations
-      days: daysArray,
-      weeks: weeksArray,
-      months: monthsArray,
-      quarters: quartersArray,
-      years: yearsArray,
-      viewMode: mode,
-      // First date for synchronization - use visibleStartDate aligned date, not buffer start
-      firstDate: firstDate,
-    };
-  }, [range, visibleStartDate, visibleEndDate, baseStartDate, baseEndDate, actualStartDate]);
+  // Use baseStartDate as startDate for position calculations
+  const startDate = baseStartDate;
+  const endDate = baseEndDate;
 
   const pixelsPerDay = (zoom / 100) * 40;
   const pixelsPerWeek = (zoom / 100) * 100;
   const pixelsPerMonth = (zoom / 100) * 120;
   const pixelsPerQuarter = (zoom / 100) * 180;
-  const pixelsPerYear = (zoom / 100) * 240;
+  const pixelsPerYear = (zoom / 100) * 180; // Reduced from 240 to 180 for better fit on screen
+
+  // Collapse/expand state for parent tasks
+  const [collapsedTasks, setCollapsedTasks] = useState<Set<string>>(new Set());
+
+  const toggleCollapsed = useCallback((taskId: string) => {
+    setCollapsedTasks(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  }, []);
 
   return (
     <GanttContext.Provider
@@ -344,12 +433,15 @@ export function GanttProvider({
         onAddItem,
         onMoveItem,
         extendRange,
-        visibleStartDate,
-        visibleEndDate,
         firstDate,
+        isExtendingRange,
+        dateRangeStart,
+        dateRangeEnd,
+        collapsedTasks,
+        toggleCollapsed,
       }}
     >
-      <div className={`flex h-full min-h-0 ${className}`}>{children}</div>
+      <div className={`flex h-full w-full min-h-0 min-w-0 ${className}`}>{children}</div>
     </GanttContext.Provider>
   );
 }

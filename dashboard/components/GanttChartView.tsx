@@ -61,7 +61,7 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
 
   // View controls
   const [zoom] = useState(100);
-  const [viewRange, setViewRange] = useState<ViewRange>('daily');
+  const [viewRange, setViewRange] = useState<ViewRange>('monthly');
 
   useEffect(() => {
     fetchData();
@@ -94,7 +94,10 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
         // Check if task title contains "test" (case-insensitive) for purple color
         const isTestTask = task.title?.toLowerCase().includes('test');
         const taskStatus = isTestTask ? 'test' : task.status;
-        
+
+        // Get parent ID from task's parentId field
+        const parentId = (task as any).parentId ? (task as any).parentId.toString() : undefined;
+
         return {
           id: task.id.toString(),
           name: task.title,
@@ -102,6 +105,8 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
           endAt: new Date(task.dueDate!),
           status: statusMap[taskStatus] || statusMap.todo,
           lane: task.projectId?.toString() || 'default',
+          parentId,
+          assignee: (task as any).assignee || undefined,
           metadata: {
             task,
             progress: task.progress,
@@ -131,30 +136,44 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
     });
   }, [features, projects]);
 
-  const handleMoveTask = async (id: string, startAt: Date, endAt: Date | null) => {
+  const handleMoveTask = async (id: string, startAt: Date, endAt: Date | null, shiftSubtasks = false) => {
     if (!endAt || readOnly) return;
 
-    console.log('🔄 Moving task:', id, 'from', startAt, 'to', endAt);
+    const task = tasks.find(t => t.id.toString() === id);
+    if (!task) return;
+
+    console.log('🔄 Moving task:', id, 'from', startAt, 'to', endAt, shiftSubtasks ? '(+ subtasks)' : '');
 
     try {
-      await axios.put(`/api/tasks/${id}`, {
+      const payload: any = {
         start_date: startAt.toISOString().split('T')[0],
         due_date: endAt.toISOString().split('T')[0],
-      });
+      };
+
+      // If task has no parentId (is a parent task), shift subtasks
+      if (shiftSubtasks) {
+        payload.shift_subtasks = true;
+      }
+
+      await axios.put(`/api/tasks/${id}`, payload);
 
       console.log('✅ Task moved successfully');
 
+      // Optimistically update task
       setTasks(prevTasks =>
-        prevTasks.map(task =>
-          task.id.toString() === id
+        prevTasks.map(t =>
+          t.id.toString() === id
             ? {
-                ...task,
+                ...t,
                 startDate: startAt.toISOString().split('T')[0],
                 dueDate: endAt.toISOString().split('T')[0],
               }
-            : task
+            : t
         )
       );
+
+      // Refresh data to get updated subtasks and parent
+      await fetchData();
     } catch (error) {
       console.error('❌ Failed to update task:', error);
     }
@@ -184,6 +203,9 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
             : task
         )
       );
+
+      // Refresh to get updated parent dates if this was a subtask
+      await fetchData();
     } catch (error) {
       console.error('Failed to resize task:', error);
     }
@@ -247,7 +269,7 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
   }
 
   return (
-    <div className="w-full h-full flex flex-col min-h-0 max-h-full">
+    <div className="w-full h-full flex flex-col min-h-0 max-h-full min-w-0 max-w-full overflow-hidden">
       {/* View Controls */}
       <div className="mb-4 flex items-center justify-end gap-2 flex-shrink-0">
         <div className="flex items-center gap-1 glass-medium rounded-xl p-1 border border-white/10">
@@ -305,8 +327,8 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
       </div>
 
       {/* Gantt Chart */}
-      <div className="glass-medium rounded-2xl border border-white/10 w-full flex-1 flex flex-col min-h-0 max-h-full overflow-hidden">
-        <div className="h-full min-h-0 flex flex-col overflow-hidden">
+      <div className="glass-medium rounded-2xl border border-white/10 w-full flex-1 flex flex-col min-h-0 max-h-full overflow-hidden min-w-0 max-w-full">
+        <div className="h-full min-h-0 min-w-0 max-w-full flex flex-col overflow-hidden">
           <GanttProvider
             features={features}
             range={viewRange}

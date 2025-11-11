@@ -1,59 +1,73 @@
-const { Client } = require('pg');
+/**
+ * Migration script to add parentId column to tasks table
+ * Run with: node run-migration.js
+ */
+
 const fs = require('fs');
 const path = require('path');
 
-// Load environment variables
-require('dotenv').config({ path: path.join(__dirname, 'dashboard', '.env.local') });
+// Read database configuration
+const envPath = path.join(__dirname, 'dashboard', '.env.local');
+let DATABASE_URL;
 
-const DATABASE_URL = process.env.DATABASE_URL;
+try {
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf-8');
+    const match = envContent.match(/DATABASE_URL=(.+)/);
+    if (match) {
+      DATABASE_URL = match[1].trim();
+    }
+  }
+} catch (error) {
+  console.error('Error reading .env.local:', error.message);
+}
 
 if (!DATABASE_URL) {
-  console.error('DATABASE_URL not found in environment variables');
+  console.error('❌ DATABASE_URL not found in .env.local');
+  console.log('\nPlease run the migration SQL manually:');
+  console.log('File: migrations/add-parent-id-to-tasks.sql\n');
+
+  const sqlPath = path.join(__dirname, 'migrations', 'add-parent-id-to-tasks.sql');
+  const sql = fs.readFileSync(sqlPath, 'utf-8');
+  console.log('--- SQL Migration ---');
+  console.log(sql);
+  console.log('--- End SQL ---\n');
+
+  console.log('To run manually:');
+  console.log('psql YOUR_DATABASE_URL -f migrations/add-parent-id-to-tasks.sql');
   process.exit(1);
 }
 
-const client = new Client({
-  connectionString: DATABASE_URL,
-});
+// Run migration using pg
+(async () => {
+  const { Client } = require('pg');
+  const client = new Client({ connectionString: DATABASE_URL });
 
-async function runMigration() {
   try {
     await client.connect();
-    console.log('✓ Connected to database');
+    console.log('✅ Connected to database');
 
-    const sql = fs.readFileSync(path.join(__dirname, 'migrations', 'add-file-attachments.sql'), 'utf8');
+    // Read migration SQL
+    const sqlPath = path.join(__dirname, 'migrations', 'add-parent-id-to-tasks.sql');
+    const sql = fs.readFileSync(sqlPath, 'utf-8');
 
-    // Split SQL into individual statements
-    const statements = sql.split(';').filter(s => s.trim().length > 0);
+    console.log('🔄 Running migration...');
+    await client.query(sql);
 
-    for (const statement of statements) {
-      const trimmed = statement.trim();
-      if (trimmed.length > 0) {
-        try {
-          await client.query(trimmed);
-          const preview = trimmed.substring(0, 70).replace(/\n/g, ' ');
-          console.log('✓ Executed:', preview + '...');
-        } catch (error) {
-          // Ignore errors for "already exists" cases
-          if (error.message.includes('already exists') || error.message.includes('duplicate')) {
-            const preview = trimmed.substring(0, 70).replace(/\n/g, ' ');
-            console.log('⊘ Skipped (already exists):', preview + '...');
-          } else {
-            console.error('✗ Error:', error.message);
-            console.error('Statement:', trimmed.substring(0, 200));
-            throw error;
-          }
-        }
-      }
-    }
-
-    console.log('\n✓ Migration completed successfully!');
+    console.log('✅ Migration completed successfully!');
+    console.log('\nAdded:');
+    console.log('  - parent_id column to tasks table');
+    console.log('  - Foreign key constraint');
+    console.log('  - Index on parent_id');
   } catch (error) {
-    console.error('\n✗ Migration failed:', error.message);
-    process.exit(1);
+    console.error('❌ Migration failed:', error.message);
+
+    if (error.message.includes('already exists')) {
+      console.log('\n✓ Column already exists - migration not needed');
+    } else {
+      process.exit(1);
+    }
   } finally {
     await client.end();
   }
-}
-
-runMigration();
+})();

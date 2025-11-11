@@ -12,13 +12,13 @@ const DayCell = React.memo(({ day, pixelsPerDay }: { day: Date; pixelsPerDay: nu
   const isWeekendDay = isWeekend(day);
 
   return (
-    <div
+    <td
       className={cn(
-        'flex flex-col justify-center border-r border-white/[0.12] px-2 group transition-all duration-200',
+        'relative border-r border-white/[0.12] px-2 group transition-all duration-200',
         isWeekendDay && 'bg-black/[0.25]',
         isTodayDate && 'bg-primary/[0.25]'
       )}
-      style={{ width: pixelsPerDay }}
+      style={{ width: pixelsPerDay, minWidth: pixelsPerDay, verticalAlign: 'middle', textAlign: 'center' }}
     >
       <div
         className={cn(
@@ -39,23 +39,37 @@ const DayCell = React.memo(({ day, pixelsPerDay }: { day: Date; pixelsPerDay: nu
       {isTodayDate && (
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary/80"></div>
       )}
-    </div>
+    </td>
   );
 });
 DayCell.displayName = 'DayCell';
 
 const WeekCell = React.memo(({ week, pixelsPerWeek }: { week: Date; pixelsPerWeek: number }) => {
-  const weekNumber = getWeek(week);
-  const currentWeek = getWeek(new Date());
-  const isCurrentWeek = weekNumber === currentWeek && week.getFullYear() === new Date().getFullYear();
+  const weekNumber = getWeek(week, { weekStartsOn: 1 });
+  // For weeks at year boundary, use the year of the week start
+  // If week number is 1 and month is December, it's the first week of next year
+  const weekStart = startOfWeek(week, { weekStartsOn: 1 });
+  let weekYear = weekStart.getFullYear();
+  // If week number is 1 and the week start is in December, it's actually the first week of next year
+  if (weekNumber === 1 && weekStart.getMonth() === 11) {
+    weekYear = weekStart.getFullYear() + 1;
+  }
+  const currentDate = new Date();
+  const currentWeekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+  const currentWeekNumber = getWeek(currentDate, { weekStartsOn: 1 });
+  let currentWeekYear = currentWeekStart.getFullYear();
+  if (currentWeekNumber === 1 && currentWeekStart.getMonth() === 11) {
+    currentWeekYear = currentWeekStart.getFullYear() + 1;
+  }
+  const isCurrentWeek = weekNumber === currentWeekNumber && weekYear === currentWeekYear;
 
   return (
-    <div
+    <td
       className={cn(
-        'flex flex-col justify-center border-r border-white/[0.12] px-3 group transition-all duration-200',
+        'relative border-r border-white/[0.12] px-3 group transition-all duration-200',
         isCurrentWeek && 'bg-primary/[0.25]'
       )}
-      style={{ width: pixelsPerWeek, minWidth: 100 }}
+      style={{ width: pixelsPerWeek, minWidth: 100, verticalAlign: 'middle', textAlign: 'center' }}
     >
       <div
         className={cn(
@@ -71,12 +85,12 @@ const WeekCell = React.memo(({ week, pixelsPerWeek }: { week: Date; pixelsPerWee
           isCurrentWeek ? 'text-primary/90 font-bold' : 'text-white/35'
         )}
       >
-        {format(week, 'yyyy')}
+        {weekYear}
       </div>
       {isCurrentWeek && (
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary/80"></div>
       )}
-    </div>
+    </td>
   );
 });
 WeekCell.displayName = 'WeekCell';
@@ -86,12 +100,12 @@ const MonthCell = React.memo(({ month, pixelsPerMonth }: { month: Date; pixelsPe
                          month.getFullYear() === new Date().getFullYear();
 
   return (
-    <div
+    <td
       className={cn(
-        'flex flex-col justify-center border-r border-white/[0.12] px-3 group transition-all duration-200',
+        'relative border-r border-white/[0.12] px-3 group transition-all duration-200',
         isCurrentMonth && 'bg-primary/[0.25]'
       )}
-      style={{ width: pixelsPerMonth }}
+      style={{ width: pixelsPerMonth, minWidth: pixelsPerMonth, verticalAlign: 'middle', textAlign: 'center' }}
     >
       <div
         className={cn(
@@ -112,7 +126,7 @@ const MonthCell = React.memo(({ month, pixelsPerMonth }: { month: Date; pixelsPe
       {isCurrentMonth && (
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary/80"></div>
       )}
-    </div>
+    </td>
   );
 });
 MonthCell.displayName = 'MonthCell';
@@ -123,12 +137,12 @@ const QuarterCell = React.memo(({ quarter, pixelsPerQuarter }: { quarter: Date; 
   const isCurrentQuarter = quarterNumber === currentQuarter && quarter.getFullYear() === new Date().getFullYear();
 
   return (
-    <div
+    <td
       className={cn(
-        'flex flex-col justify-center border-r border-white/[0.12] px-4 group transition-all duration-200',
+        'relative border-r border-white/[0.12] px-4 group transition-all duration-200',
         isCurrentQuarter && 'bg-primary/[0.25]'
       )}
-      style={{ width: pixelsPerQuarter }}
+      style={{ width: pixelsPerQuarter, minWidth: pixelsPerQuarter, verticalAlign: 'middle', textAlign: 'center' }}
     >
       <div
         className={cn(
@@ -149,7 +163,7 @@ const QuarterCell = React.memo(({ quarter, pixelsPerQuarter }: { quarter: Date; 
       {isCurrentQuarter && (
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary/80"></div>
       )}
-    </div>
+    </td>
   );
 });
 QuarterCell.displayName = 'QuarterCell';
@@ -158,12 +172,12 @@ const YearCell = React.memo(({ year, pixelsPerYear }: { year: Date; pixelsPerYea
   const isCurrentYear = year.getFullYear() === new Date().getFullYear();
 
   return (
-    <div
+    <td
       className={cn(
-        'flex flex-col justify-center border-r border-white/[0.12] px-5 group transition-all duration-200',
+        'relative border-r border-white/[0.12] px-5 group transition-all duration-200',
         isCurrentYear && 'bg-primary/[0.25]'
       )}
-      style={{ width: pixelsPerYear }}
+      style={{ width: pixelsPerYear, minWidth: pixelsPerYear, verticalAlign: 'middle', textAlign: 'center' }}
     >
       <div
         className={cn(
@@ -176,7 +190,7 @@ const YearCell = React.memo(({ year, pixelsPerYear }: { year: Date; pixelsPerYea
       {isCurrentYear && (
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary/80"></div>
       )}
-    </div>
+    </td>
   );
 });
 YearCell.displayName = 'YearCell';
@@ -185,70 +199,17 @@ export function GanttHeader() {
   const { days, weeks, months, quarters, years, pixelsPerDay, pixelsPerWeek, pixelsPerMonth, pixelsPerQuarter, pixelsPerYear, viewMode, firstDate } = useGantt();
   const { headerScrollRef } = useScrollSync();
 
-  // Filter date arrays to start from firstDate (actual visible date, not buffer)
-  // This ensures header shows actual dates that match the rows
+  // Dates are calculated for current range (starts with ±2 years, expands on scroll)
+  // Use all dates directly from the arrays
   const filteredDates = useMemo(() => {
-    const findStartIndex = (dateArray: Date[]): number => {
-      if (!firstDate || dateArray.length === 0) return 0;
-      
-      switch (viewMode) {
-        case 'days':
-          return dateArray.findIndex(d => d.getTime() === firstDate.getTime());
-        case 'weeks': {
-          return dateArray.findIndex(d => {
-            const weekStart = startOfWeek(d);
-            const weekEnd = endOfWeek(d);
-            return firstDate >= weekStart && firstDate <= weekEnd;
-          });
-        }
-        case 'months': {
-          const firstYear = firstDate.getFullYear();
-          const firstMonth = firstDate.getMonth();
-          return dateArray.findIndex(d => d.getFullYear() === firstYear && d.getMonth() === firstMonth);
-        }
-        case 'quarters': {
-          const firstYear = firstDate.getFullYear();
-          const firstQuarterMonth = Math.floor(firstDate.getMonth() / 3) * 3;
-          return dateArray.findIndex(d => {
-            const dYear = d.getFullYear();
-            const dMonth = d.getMonth();
-            return dYear === firstYear && Math.floor(dMonth / 3) * 3 === firstQuarterMonth;
-          });
-        }
-        case 'years': {
-          const firstYear = firstDate.getFullYear();
-          return dateArray.findIndex(d => d.getFullYear() === firstYear);
-        }
-        default:
-          return 0;
-      }
-    };
-
-    const startIndex = (() => {
-      switch (viewMode) {
-        case 'days':
-          return findStartIndex(days);
-        case 'weeks':
-          return findStartIndex(weeks);
-        case 'months':
-          return findStartIndex(months);
-        case 'quarters':
-          return findStartIndex(quarters);
-        case 'years':
-          return findStartIndex(years);
-        default:
-          return 0;
-      }
-    })();
-
     return {
-      filteredDays: startIndex >= 0 ? days.slice(startIndex) : days,
-      filteredWeeks: startIndex >= 0 ? weeks.slice(startIndex) : weeks,
-      filteredMonths: startIndex >= 0 ? months.slice(startIndex) : months,
-      filteredQuarters: startIndex >= 0 ? quarters.slice(startIndex) : quarters,
-      filteredYears: startIndex >= 0 ? years.slice(startIndex) : years,
+      filteredDays: days,
+      filteredWeeks: weeks,
+      filteredMonths: months,
+      filteredQuarters: quarters,
+      filteredYears: years,
     };
-  }, [days, weeks, months, quarters, years, firstDate, viewMode]);
+  }, [days, weeks, months, quarters, years]);
 
   // Calculate total width to match feature rows exactly
   const totalWidth = useMemo(() => {
@@ -275,29 +236,59 @@ export function GanttHeader() {
       style={{
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
+        width: '100%',
+        maxWidth: '100%',
       }}
     >
-      <div className="flex h-16" style={{ width: `${totalWidth}px`, minWidth: `${totalWidth}px` }}>
-        {viewMode === 'days' && filteredDates.filteredDays.map((day) => (
-          <DayCell key={day.toISOString()} day={day} pixelsPerDay={pixelsPerDay} />
-        ))}
+      <table 
+        className="border-collapse" 
+        style={{ 
+          width: `${totalWidth}px`, 
+          minWidth: `${totalWidth}px`,
+          tableLayout: 'fixed',
+        }}
+      >
+        <colgroup>
+          {viewMode === 'days' && filteredDates.filteredDays.map((day) => (
+            <col key={day.toISOString()} style={{ width: `${pixelsPerDay}px` }} />
+          ))}
+          {viewMode === 'weeks' && filteredDates.filteredWeeks.map((week) => (
+            <col key={week.toISOString()} style={{ width: `${pixelsPerWeek}px` }} />
+          ))}
+          {viewMode === 'months' && filteredDates.filteredMonths.map((month) => (
+            <col key={month.toISOString()} style={{ width: `${pixelsPerMonth}px` }} />
+          ))}
+          {viewMode === 'quarters' && filteredDates.filteredQuarters.map((quarter) => (
+            <col key={quarter.toISOString()} style={{ width: `${pixelsPerQuarter}px` }} />
+          ))}
+          {viewMode === 'years' && filteredDates.filteredYears.map((year) => (
+            <col key={year.toISOString()} style={{ width: `${pixelsPerYear}px` }} />
+          ))}
+        </colgroup>
+        <tbody>
+          <tr className="h-16">
+            {viewMode === 'days' && filteredDates.filteredDays.map((day) => (
+              <DayCell key={day.toISOString()} day={day} pixelsPerDay={pixelsPerDay} />
+            ))}
 
-        {viewMode === 'weeks' && filteredDates.filteredWeeks.map((week) => (
-          <WeekCell key={week.toISOString()} week={week} pixelsPerWeek={pixelsPerWeek} />
-        ))}
+            {viewMode === 'weeks' && filteredDates.filteredWeeks.map((week) => (
+              <WeekCell key={week.toISOString()} week={week} pixelsPerWeek={pixelsPerWeek} />
+            ))}
 
-        {viewMode === 'months' && filteredDates.filteredMonths.map((month) => (
-          <MonthCell key={month.toISOString()} month={month} pixelsPerMonth={pixelsPerMonth} />
-        ))}
+            {viewMode === 'months' && filteredDates.filteredMonths.map((month) => (
+              <MonthCell key={month.toISOString()} month={month} pixelsPerMonth={pixelsPerMonth} />
+            ))}
 
-        {viewMode === 'quarters' && filteredDates.filteredQuarters.map((quarter) => (
-          <QuarterCell key={quarter.toISOString()} quarter={quarter} pixelsPerQuarter={pixelsPerQuarter} />
-        ))}
+            {viewMode === 'quarters' && filteredDates.filteredQuarters.map((quarter) => (
+              <QuarterCell key={quarter.toISOString()} quarter={quarter} pixelsPerQuarter={pixelsPerQuarter} />
+            ))}
 
-        {viewMode === 'years' && filteredDates.filteredYears.map((year) => (
-          <YearCell key={year.toISOString()} year={year} pixelsPerYear={pixelsPerYear} />
-        ))}
-      </div>
+            {viewMode === 'years' && filteredDates.filteredYears.map((year) => (
+              <YearCell key={year.toISOString()} year={year} pixelsPerYear={pixelsPerYear} />
+            ))}
+          </tr>
+        </tbody>
+      </table>
     </div>
   );
 }

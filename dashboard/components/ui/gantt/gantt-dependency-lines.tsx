@@ -13,6 +13,7 @@ interface DependencyLine {
   toX: number;
   toY: number;
   color: string;
+  type: 'dependency' | 'parent-child';
 }
 
 interface GanttDependencyLinesProps {
@@ -28,19 +29,123 @@ export function GanttDependencyLines({ features, className }: GanttDependencyLin
     const lines: DependencyLine[] = [];
     const taskPositions = new Map<string, { x: number; y: number; width: number; row: number }>();
 
-    // First, calculate positions for all tasks
-    features.forEach((feature, index) => {
-      const left = differenceInDays(feature.startAt, startDate) * pixelsPerDay;
-      const width = differenceInDays(feature.endAt, feature.startAt) * pixelsPerDay;
-      const rowHeight = 60; // Same as in feature-row
-      const taskHeight = 44; // Height of task bar
-      const topOffset = 8; // Top margin of task bar
-      const y = (index % 5) * rowHeight + topOffset + taskHeight / 2; // Center of task bar
+    // Build a map to track row positions for hierarchical layout
+    // This needs to match the row allocation algorithm in gantt-feature-row
+    const parentTasks = features.filter(f => !f.parentId);
+    const subtasksByParent = new Map<string, GanttFeature[]>();
 
-      taskPositions.set(feature.id, { x: left, y, width, row: index % 5 });
+    features.forEach(f => {
+      if (f.parentId) {
+        if (!subtasksByParent.has(f.parentId)) {
+          subtasksByParent.set(f.parentId, []);
+        }
+        subtasksByParent.get(f.parentId)!.push(f);
+      }
     });
 
-    // Now create lines based on dependencies
+    subtasksByParent.forEach((subtasks) => {
+      subtasks.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+    });
+
+    const sortedParents = [...parentTasks].sort((a, b) =>
+      a.startAt.getTime() - b.startAt.getTime()
+    );
+
+    const subRowEndTimes: Date[] = [];
+    let currentRow = 0;
+
+    // Calculate positions using the same algorithm as feature-row
+    for (const parent of sortedParents) {
+      const subtasks = subtasksByParent.get(parent.id) || [];
+      const groupSize = 1 + subtasks.length;
+
+      // Find first free row for the group
+      let subRow = 0;
+      let foundSlot = false;
+
+      while (!foundSlot) {
+        let allFree = true;
+        for (let i = 0; i < groupSize; i++) {
+          const checkRow = subRow + i;
+          if (checkRow < subRowEndTimes.length && subRowEndTimes[checkRow] > parent.startAt) {
+            allFree = false;
+            break;
+          }
+        }
+
+        if (allFree) {
+          foundSlot = true;
+        } else {
+          subRow++;
+        }
+      }
+
+      // Calculate position for parent
+      const left = differenceInDays(parent.startAt, startDate) * pixelsPerDay;
+      const width = differenceInDays(parent.endAt, parent.startAt) * pixelsPerDay;
+      const rowHeight = 60;
+      const taskHeight = 44;
+      const topOffset = 8;
+      const y = subRow * rowHeight + topOffset + taskHeight / 2;
+
+      taskPositions.set(parent.id, { x: left, y, width, row: subRow });
+
+      // Update end time for parent row
+      if (subRow >= subRowEndTimes.length) {
+        subRowEndTimes.push(parent.endAt);
+      } else {
+        subRowEndTimes[subRow] = parent.endAt;
+      }
+
+      // Calculate positions for subtasks
+      subtasks.forEach((subtask, index) => {
+        const subtaskRow = subRow + 1 + index;
+        const subtaskLeft = differenceInDays(subtask.startAt, startDate) * pixelsPerDay;
+        const subtaskWidth = differenceInDays(subtask.endAt, subtask.startAt) * pixelsPerDay;
+        const subtaskY = subtaskRow * rowHeight + topOffset + taskHeight / 2;
+
+        taskPositions.set(subtask.id, { x: subtaskLeft, y: subtaskY, width: subtaskWidth, row: subtaskRow });
+
+        // Update end time for subtask row
+        if (subtaskRow >= subRowEndTimes.length) {
+          subRowEndTimes.push(subtask.endAt);
+        } else {
+          subRowEndTimes[subtaskRow] = subtask.endAt > subRowEndTimes[subtaskRow]
+            ? subtask.endAt
+            : subRowEndTimes[subtaskRow];
+        }
+      });
+    }
+
+    // Create parent-child lines
+    features.forEach((feature) => {
+      if (feature.parentId) {
+        const parentPos = taskPositions.get(feature.parentId);
+        const childPos = taskPositions.get(feature.id);
+
+        if (parentPos && childPos) {
+          // Line goes from left of parent to left of child (vertical connector)
+          const fromX = parentPos.x;
+          const fromY = parentPos.y;
+          const toX = childPos.x;
+          const toY = childPos.y;
+
+          lines.push({
+            id: `parent-child-${feature.parentId}-${feature.id}`,
+            fromTaskId: feature.parentId,
+            toTaskId: feature.id,
+            fromX,
+            fromY,
+            toX,
+            toY,
+            color: '#94a3b8', // Slate color for parent-child
+            type: 'parent-child',
+          });
+        }
+      }
+    });
+
+    // Create dependency lines
     features.forEach((feature) => {
       if (feature.metadata?.task?.dependsOn) {
         // Parse dependsOn field (can be comma-separated string or single ID)
@@ -66,7 +171,7 @@ export function GanttDependencyLines({ features, className }: GanttDependencyLin
             const color = sourceFeature?.status?.color || 'hsl(var(--primary) / 0.6)';
 
             lines.push({
-              id: `${dependsOnId}-${feature.id}`,
+              id: `dep-${dependsOnId}-${feature.id}`,
               fromTaskId: dependsOnId,
               toTaskId: feature.id,
               fromX,
@@ -74,6 +179,7 @@ export function GanttDependencyLines({ features, className }: GanttDependencyLin
               toX,
               toY,
               color,
+              type: 'dependency',
             });
           }
         });
@@ -120,15 +226,28 @@ export function GanttDependencyLines({ features, className }: GanttDependencyLin
       {/* Draw dependency lines */}
       {dependencyLines.map((line) => {
         const colorId = line.color.replace(/[^a-z0-9]/gi, '');
+        const isParentChild = line.type === 'parent-child';
 
-        // Calculate path with elbow connector
-        const midX = (line.fromX + line.toX) / 2;
-        const pathData = `
-          M ${line.fromX} ${line.fromY}
-          L ${midX} ${line.fromY}
-          L ${midX} ${line.toY}
-          L ${line.toX - 8} ${line.toY}
-        `;
+        // Calculate path
+        let pathData: string;
+        if (isParentChild) {
+          // Simple vertical/L-shaped connector for parent-child
+          const offsetX = 15; // Small horizontal offset
+          pathData = `
+            M ${line.fromX} ${line.fromY}
+            L ${line.fromX} ${line.toY}
+            L ${line.toX} ${line.toY}
+          `;
+        } else {
+          // Elbow connector for dependencies
+          const midX = (line.fromX + line.toX) / 2;
+          pathData = `
+            M ${line.fromX} ${line.fromY}
+            L ${midX} ${line.fromY}
+            L ${midX} ${line.toY}
+            L ${line.toX - 8} ${line.toY}
+          `;
+        }
 
         return (
           <g key={line.id} className="dependency-line group">
@@ -146,10 +265,14 @@ export function GanttDependencyLines({ features, className }: GanttDependencyLin
               d={pathData}
               fill="none"
               stroke={line.color}
-              strokeWidth="2"
-              strokeOpacity="0.6"
-              markerEnd={`url(#arrowhead-${colorId})`}
-              className="transition-all duration-200 group-hover:stroke-opacity-100 group-hover:stroke-[3]"
+              strokeWidth={isParentChild ? "1.5" : "2"}
+              strokeOpacity={isParentChild ? "0.4" : "0.6"}
+              strokeDasharray={isParentChild ? "4 4" : "none"}
+              markerEnd={isParentChild ? undefined : `url(#arrowhead-${colorId})`}
+              className={isParentChild
+                ? "transition-all duration-200 group-hover:stroke-opacity-60"
+                : "transition-all duration-200 group-hover:stroke-opacity-100 group-hover:stroke-[3]"
+              }
             />
           </g>
         );

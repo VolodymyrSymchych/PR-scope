@@ -105,8 +105,8 @@ export function GanttToday() {
       case 'weeks': {
         const index = weeks.findIndex(d => {
           // Check if today is within this week
-          const weekStart = startOfWeek(d);
-          const weekEnd = endOfWeek(d);
+          const weekStart = startOfWeek(d, { weekStartsOn: 1 });
+          const weekEnd = endOfWeek(d, { weekStartsOn: 1 });
           return today >= weekStart && today <= weekEnd;
         });
         return index >= 0 ? index * pixelsPerWeek : differenceInWeeks(today, firstDate) * pixelsPerWeek;

@@ -4,9 +4,10 @@ import React, { ReactNode, useMemo, useState } from 'react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, useDraggable, useDroppable, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { useGantt, GanttFeature } from './gantt-provider';
-import { differenceInDays, differenceInWeeks, differenceInMonths, differenceInQuarters, differenceInYears, addDays, format } from 'date-fns';
+import { differenceInDays, differenceInWeeks, differenceInMonths, differenceInQuarters, differenceInYears, addDays, format, startOfWeek, endOfWeek } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { GripVertical } from 'lucide-react';
+import { GanttTooltip } from './gantt-tooltip';
 
 interface GanttFeatureRowProps {
   features: GanttFeature[];
@@ -17,7 +18,7 @@ interface GanttFeatureRowProps {
 }
 
 export function GanttFeatureRow({ features, onMove, onResize, children, className }: GanttFeatureRowProps) {
-  const { startDate, endDate, baseStartDate, firstDate, pixelsPerDay, pixelsPerWeek, pixelsPerMonth, pixelsPerQuarter, pixelsPerYear, viewMode, onMoveItem, days, weeks, months, quarters, years } = useGantt();
+  const { startDate, endDate, baseStartDate, firstDate, pixelsPerDay, pixelsPerWeek, pixelsPerMonth, pixelsPerQuarter, pixelsPerYear, viewMode, onMoveItem, days, weeks, months, quarters, years, collapsedTasks } = useGantt();
 
   // Calculate pixels per day based on view mode
   const pixelsPerUnit = useMemo(() => {
@@ -44,36 +45,98 @@ export function GanttFeatureRow({ features, onMove, onResize, children, classNam
     })
   );
 
-  // Calculate sub-row positions for overlapping features
+  // Calculate sub-row positions for overlapping features with hierarchy support
   const featuresWithPositions = useMemo(() => {
-    // Sort features by start date
-    const sortedFeatures = [...features].sort((a, b) => 
+    // Filter out subtasks of collapsed parents
+    const visibleFeatures = features.filter(f => {
+      if (f.parentId && collapsedTasks.has(f.parentId)) {
+        return false; // Hide subtasks of collapsed parents
+      }
+      return true;
+    });
+
+    // Separate parent tasks and subtasks
+    const parentTasks = visibleFeatures.filter(f => !f.parentId);
+    const subtasksByParent = new Map<string, GanttFeature[]>();
+
+    // Group subtasks by parent
+    visibleFeatures.forEach(f => {
+      if (f.parentId) {
+        if (!subtasksByParent.has(f.parentId)) {
+          subtasksByParent.set(f.parentId, []);
+        }
+        subtasksByParent.get(f.parentId)!.push(f);
+      }
+    });
+
+    // Sort subtasks by start date within each parent
+    subtasksByParent.forEach((subtasks) => {
+      subtasks.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+    });
+
+    // Sort parent tasks by start date
+    const sortedParents = [...parentTasks].sort((a, b) =>
       a.startAt.getTime() - b.startAt.getTime()
     );
 
-    const featureWithPositions: Array<GanttFeature & { subRow: number }> = [];
+    const featureWithPositions: Array<GanttFeature & { subRow: number; isSubtask?: boolean }> = [];
     const subRowEndTimes: Date[] = []; // Track when each sub-row becomes free
 
-    for (const feature of sortedFeatures) {
+    for (const parent of sortedParents) {
+      const subtasks = subtasksByParent.get(parent.id) || [];
+      const groupSize = 1 + subtasks.length; // Parent + subtasks
+
+      // Find the first sub-row where the entire group (parent + subtasks) fits
       let subRow = 0;
+      let foundSlot = false;
 
-      // Find the first sub-row that's free (doesn't overlap)
-      while (subRow < subRowEndTimes.length && subRowEndTimes[subRow] > feature.startAt) {
-        subRow++;
+      while (!foundSlot) {
+        // Check if all rows in the group are free
+        let allFree = true;
+        for (let i = 0; i < groupSize; i++) {
+          const checkRow = subRow + i;
+          if (checkRow < subRowEndTimes.length && subRowEndTimes[checkRow] > parent.startAt) {
+            allFree = false;
+            break;
+          }
+        }
+
+        if (allFree) {
+          foundSlot = true;
+        } else {
+          subRow++;
+        }
       }
 
-      // Update the end time for this sub-row
-      if (subRow === subRowEndTimes.length) {
-        subRowEndTimes.push(feature.endAt);
+      // Place parent in the found row
+      featureWithPositions.push({ ...parent, subRow, isSubtask: false });
+
+      // Update end time for parent row
+      if (subRow >= subRowEndTimes.length) {
+        subRowEndTimes.push(parent.endAt);
       } else {
-        subRowEndTimes[subRow] = feature.endAt;
+        subRowEndTimes[subRow] = parent.endAt;
       }
 
-      featureWithPositions.push({ ...feature, subRow });
+      // Place subtasks in consecutive rows below parent
+      subtasks.forEach((subtask, index) => {
+        const subtaskRow = subRow + 1 + index;
+        featureWithPositions.push({ ...subtask, subRow: subtaskRow, isSubtask: true });
+
+        // Update end time for subtask row
+        if (subtaskRow >= subRowEndTimes.length) {
+          subRowEndTimes.push(subtask.endAt);
+        } else {
+          // Keep track of the latest end time that occupies this row
+          subRowEndTimes[subtaskRow] = subtask.endAt > subRowEndTimes[subtaskRow]
+            ? subtask.endAt
+            : subRowEndTimes[subtaskRow];
+        }
+      });
     }
 
     return featureWithPositions;
-  }, [features]);
+  }, [features, collapsedTasks]);
 
   const handleDragStart = (event: DragStartEvent) => {
     const activeId = event.active.id as string;
@@ -138,17 +201,22 @@ export function GanttFeatureRow({ features, onMove, onResize, children, classNam
       } else {
         // Handle move
         const daysDiff = differenceInDays(dropDate, draggedFeature.startAt);
-        
-        if (daysDiff !== 0 && onMove) {
+
+        if (daysDiff !== 0) {
           const newStart = addDays(draggedFeature.startAt, daysDiff);
           const newEnd = addDays(draggedFeature.endAt, daysDiff);
-          onMove(activeId, newStart, newEnd);
-        }
-        
-        if (daysDiff !== 0 && onMoveItem) {
-          const newStart = addDays(draggedFeature.startAt, daysDiff);
-          const newEnd = addDays(draggedFeature.endAt, daysDiff);
-          onMoveItem(activeId, newStart, newEnd);
+
+          // Check if this is a parent task (has subtasks)
+          const isParentTask = !draggedFeature.parentId && features.some(f => f.parentId === draggedFeature.id);
+
+          if (onMove) {
+            // Pass true for shiftSubtasks if moving a parent task
+            (onMove as any)(activeId, newStart, newEnd, isParentTask);
+          }
+
+          if (onMoveItem) {
+            (onMoveItem as any)(activeId, newStart, newEnd, isParentTask);
+          }
         }
       }
     }
@@ -165,23 +233,86 @@ export function GanttFeatureRow({ features, onMove, onResize, children, classNam
   const totalHeight = maxSubRows * subRowHeight;
   
   // Calculate total width - match header width exactly
-  // Header width is sum of all date cells, so we need to calculate the same way
+  // Header uses filtered dates starting from firstDate, so we need to filter the same way
+  const filteredDates = useMemo(() => {
+    const findStartIndex = (dateArray: Date[]): number => {
+      if (!firstDate || dateArray.length === 0) return 0;
+      
+      switch (viewMode) {
+        case 'days':
+          return dateArray.findIndex(d => d.getTime() === firstDate.getTime());
+        case 'weeks': {
+          return dateArray.findIndex(d => {
+            const weekStart = startOfWeek(d, { weekStartsOn: 1 });
+            const weekEnd = endOfWeek(d, { weekStartsOn: 1 });
+            return firstDate >= weekStart && firstDate <= weekEnd;
+          });
+        }
+        case 'months': {
+          const firstYear = firstDate.getFullYear();
+          const firstMonth = firstDate.getMonth();
+          return dateArray.findIndex(d => d.getFullYear() === firstYear && d.getMonth() === firstMonth);
+        }
+        case 'quarters': {
+          const firstYear = firstDate.getFullYear();
+          const firstQuarterMonth = Math.floor(firstDate.getMonth() / 3) * 3;
+          return dateArray.findIndex(d => {
+            const dYear = d.getFullYear();
+            const dMonth = d.getMonth();
+            return dYear === firstYear && Math.floor(dMonth / 3) * 3 === firstQuarterMonth;
+          });
+        }
+        case 'years': {
+          const firstYear = firstDate.getFullYear();
+          return dateArray.findIndex(d => d.getFullYear() === firstYear);
+        }
+        default:
+          return 0;
+      }
+    };
+
+    const startIndex = (() => {
+      switch (viewMode) {
+        case 'days':
+          return findStartIndex(days);
+        case 'weeks':
+          return findStartIndex(weeks);
+        case 'months':
+          return findStartIndex(months);
+        case 'quarters':
+          return findStartIndex(quarters);
+        case 'years':
+          return findStartIndex(years);
+        default:
+          return 0;
+      }
+    })();
+
+    return {
+      filteredDays: startIndex >= 0 ? days.slice(startIndex) : days,
+      filteredWeeks: startIndex >= 0 ? weeks.slice(startIndex) : weeks,
+      filteredMonths: startIndex >= 0 ? months.slice(startIndex) : months,
+      filteredQuarters: startIndex >= 0 ? quarters.slice(startIndex) : quarters,
+      filteredYears: startIndex >= 0 ? years.slice(startIndex) : years,
+    };
+  }, [days, weeks, months, quarters, years, firstDate, viewMode]);
+
   const totalWidth = useMemo(() => {
     switch (viewMode) {
       case 'days':
-        return days.length * pixelsPerDay;
+        return filteredDates.filteredDays.length * pixelsPerDay;
       case 'weeks':
-        return weeks.length * pixelsPerWeek;
+        return filteredDates.filteredWeeks.length * pixelsPerWeek;
       case 'months':
-        return months.length * pixelsPerMonth;
+        return filteredDates.filteredMonths.length * pixelsPerMonth;
       case 'quarters':
-        return quarters.length * pixelsPerQuarter;
+        return filteredDates.filteredQuarters.length * pixelsPerQuarter;
       case 'years':
-        return years.length * pixelsPerYear;
+        return filteredDates.filteredYears.length * pixelsPerYear;
       default:
-        return days.length * pixelsPerDay;
+        return filteredDates.filteredDays.length * pixelsPerDay;
     }
-  }, [viewMode, days, weeks, months, quarters, years, pixelsPerDay, pixelsPerWeek, pixelsPerMonth, pixelsPerQuarter, pixelsPerYear]);
+  }, [viewMode, filteredDates, pixelsPerDay, pixelsPerWeek, pixelsPerMonth, pixelsPerQuarter, pixelsPerYear]);
   
   // Calculate offset to position background correctly
   // Tasks are positioned relative to firstDate (header start)
@@ -237,7 +368,71 @@ interface FeatureBarProps {
 }
 
 const FeatureBar = React.memo(function FeatureBar({ feature, startDate, pixelsPerDay, isDragging, onResize, children }: FeatureBarProps) {
-  const { viewMode, pixelsPerWeek, pixelsPerMonth, pixelsPerQuarter, pixelsPerYear, days, weeks, months, quarters, years } = useGantt();
+  const { viewMode, pixelsPerWeek, pixelsPerMonth, pixelsPerQuarter, pixelsPerYear, days, weeks, months, quarters, years, firstDate, dateRangeStart, dateRangeEnd } = useGantt();
+  
+  // Filter dates the same way as header does
+  const filteredDates = useMemo(() => {
+    const findStartIndex = (dateArray: Date[]): number => {
+      if (!firstDate || dateArray.length === 0) return 0;
+      
+      switch (viewMode) {
+        case 'days':
+          return dateArray.findIndex(d => d.getTime() === firstDate.getTime());
+        case 'weeks': {
+          return dateArray.findIndex(d => {
+            const weekStart = startOfWeek(d, { weekStartsOn: 1 });
+            const weekEnd = endOfWeek(d, { weekStartsOn: 1 });
+            return firstDate >= weekStart && firstDate <= weekEnd;
+          });
+        }
+        case 'months': {
+          const firstYear = firstDate.getFullYear();
+          const firstMonth = firstDate.getMonth();
+          return dateArray.findIndex(d => d.getFullYear() === firstYear && d.getMonth() === firstMonth);
+        }
+        case 'quarters': {
+          const firstYear = firstDate.getFullYear();
+          const firstQuarterMonth = Math.floor(firstDate.getMonth() / 3) * 3;
+          return dateArray.findIndex(d => {
+            const dYear = d.getFullYear();
+            const dMonth = d.getMonth();
+            return dYear === firstYear && Math.floor(dMonth / 3) * 3 === firstQuarterMonth;
+          });
+        }
+        case 'years': {
+          const firstYear = firstDate.getFullYear();
+          return dateArray.findIndex(d => d.getFullYear() === firstYear);
+        }
+        default:
+          return 0;
+      }
+    };
+
+    const startIndex = (() => {
+      switch (viewMode) {
+        case 'days':
+          return findStartIndex(days);
+        case 'weeks':
+          return findStartIndex(weeks);
+        case 'months':
+          return findStartIndex(months);
+        case 'quarters':
+          return findStartIndex(quarters);
+        case 'years':
+          return findStartIndex(years);
+        default:
+          return 0;
+      }
+    })();
+
+    return {
+      filteredDays: startIndex >= 0 ? days.slice(startIndex) : days,
+      filteredWeeks: startIndex >= 0 ? weeks.slice(startIndex) : weeks,
+      filteredMonths: startIndex >= 0 ? months.slice(startIndex) : months,
+      filteredQuarters: startIndex >= 0 ? quarters.slice(startIndex) : quarters,
+      filteredYears: startIndex >= 0 ? years.slice(startIndex) : years,
+    };
+  }, [days, weeks, months, quarters, years, firstDate, viewMode]);
   
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: feature.id,
@@ -265,11 +460,13 @@ const FeatureBar = React.memo(function FeatureBar({ feature, startDate, pixelsPe
       }
       case 'quarters': {
         // Find the quarter that contains this date
+        // eachQuarterOfInterval returns dates at the start of each quarter
         const year = date.getFullYear();
         const quarterMonth = Math.floor(date.getMonth() / 3) * 3;
         return dateArray.findIndex(d => {
           const dYear = d.getFullYear();
           const dMonth = d.getMonth();
+          // Check if this date is in the same quarter (same year and same quarter start month)
           return dYear === year && Math.floor(dMonth / 3) * 3 === quarterMonth;
         });
       }
@@ -284,7 +481,7 @@ const FeatureBar = React.memo(function FeatureBar({ feature, startDate, pixelsPe
   };
   
   // Memoize position calculations - use array indices for months/quarters/years
-  const { left, width } = useMemo(() => {
+  const { left, width, clippedLeft, clippedRight } = useMemo(() => {
     let leftPx: number;
     let widthPx: number;
     
@@ -293,10 +490,50 @@ const FeatureBar = React.memo(function FeatureBar({ feature, startDate, pixelsPe
         leftPx = differenceInDays(feature.startAt, startDate) * pixelsPerDay;
         widthPx = differenceInDays(feature.endAt, feature.startAt) * pixelsPerDay;
         break;
-      case 'weeks':
-        leftPx = differenceInWeeks(feature.startAt, startDate) * pixelsPerWeek;
-        widthPx = differenceInWeeks(feature.endAt, feature.startAt) * pixelsPerWeek;
+      case 'weeks': {
+        // Use filtered weeks array (same as header) for consistency
+        // Find indices in filtered weeks array
+        const startIndex = filteredDates.filteredWeeks.findIndex(w => {
+          const weekStart = startOfWeek(w, { weekStartsOn: 1 });
+          const weekEnd = endOfWeek(w, { weekStartsOn: 1 });
+          return feature.startAt >= weekStart && feature.startAt <= weekEnd;
+        });
+        
+        const endIndex = filteredDates.filteredWeeks.findIndex(w => {
+          const weekStart = startOfWeek(w, { weekStartsOn: 1 });
+          const weekEnd = endOfWeek(w, { weekStartsOn: 1 });
+          return feature.endAt >= weekStart && feature.endAt <= weekEnd;
+        });
+        
+        // Calculate position relative to firstDate (which is at index 0 in filtered array)
+        if (startIndex >= 0) {
+          // Use array index directly - firstDate is at index 0 in filtered array
+          leftPx = startIndex * pixelsPerWeek;
+        } else {
+          // If not found, calculate difference from firstDate
+          const taskWeekStart = startOfWeek(feature.startAt, { weekStartsOn: 1 });
+          const firstWeekStart = startOfWeek(firstDate, { weekStartsOn: 1 });
+          leftPx = differenceInWeeks(taskWeekStart, firstWeekStart) * pixelsPerWeek;
+        }
+        
+        if (startIndex >= 0 && endIndex >= 0 && endIndex >= startIndex) {
+          // Calculate width based on number of weeks spanned
+          widthPx = (endIndex - startIndex + 1) * pixelsPerWeek;
+        } else if (startIndex >= 0) {
+          // Start found but end not found - use minimum width
+          widthPx = pixelsPerWeek;
+        } else if (endIndex >= 0) {
+          // End found but start not found
+          widthPx = pixelsPerWeek;
+        } else {
+          // Neither found - calculate from week difference
+          const startWeekStart = startOfWeek(feature.startAt, { weekStartsOn: 1 });
+          const endWeekStart = startOfWeek(feature.endAt, { weekStartsOn: 1 });
+          const weeksSpan = differenceInWeeks(endWeekStart, startWeekStart) + 1;
+          widthPx = Math.max(pixelsPerWeek, weeksSpan * pixelsPerWeek);
+        }
         break;
+      }
       case 'months': {
         // Find index of start month and end month in the months array
         const startIndex = findDateIndex(feature.startAt, months, 'months');
@@ -329,19 +566,54 @@ const FeatureBar = React.memo(function FeatureBar({ feature, startDate, pixelsPe
         break;
       }
       case 'quarters': {
-        // Find index of start quarter and end quarter in the quarters array
-        const startIndex = findDateIndex(feature.startAt, quarters, 'quarters');
-        const endIndex = findDateIndex(feature.endAt, quarters, 'quarters');
+        // Calculate quarter start dates for the feature
+        const quarterStart = new Date(feature.startAt.getFullYear(), Math.floor(feature.startAt.getMonth() / 3) * 3, 1);
+        const quarterEnd = new Date(feature.endAt.getFullYear(), Math.floor(feature.endAt.getMonth() / 3) * 3, 1);
         
-        // Always use firstDate (first date in array) as reference point for synchronization
-        if (startIndex >= 0) {
-          // Use array index directly - firstDate is at index 0
+        // Find the index of firstDate in quarters array to use as offset
+        const firstQuarterStart = new Date(firstDate.getFullYear(), Math.floor(firstDate.getMonth() / 3) * 3, 1);
+        const firstQuarterIndex = quarters.findIndex(q => {
+          const qYear = q.getFullYear();
+          const qMonth = q.getMonth();
+          const qQuarterStart = new Date(qYear, Math.floor(qMonth / 3) * 3, 1);
+          return qQuarterStart.getTime() === firstQuarterStart.getTime();
+        });
+        
+        // Find indices in quarters array by comparing quarter start dates
+        // eachQuarterOfInterval returns dates at the start of each quarter (1st day of quarter)
+        const startIndex = quarters.findIndex(q => {
+          const qYear = q.getFullYear();
+          const qMonth = q.getMonth();
+          const qQuarterStart = new Date(qYear, Math.floor(qMonth / 3) * 3, 1);
+          return qQuarterStart.getTime() === quarterStart.getTime();
+        });
+        
+        const endIndex = quarters.findIndex(q => {
+          const qYear = q.getFullYear();
+          const qMonth = q.getMonth();
+          const qQuarterStart = new Date(qYear, Math.floor(qMonth / 3) * 3, 1);
+          return qQuarterStart.getTime() === quarterEnd.getTime();
+        });
+        
+        // Calculate position relative to firstDate
+        // If firstDate is at index N in quarters array, and our task starts at index M,
+        // then position is (M - N) * pixelsPerQuarter
+        if (startIndex >= 0 && firstQuarterIndex >= 0) {
+          // Use relative index from firstDate
+          leftPx = (startIndex - firstQuarterIndex) * pixelsPerQuarter;
+        } else if (startIndex >= 0) {
+          // Start found but firstDate not found - use absolute index
           leftPx = startIndex * pixelsPerQuarter;
         } else {
-          // Fallback: find the quarter that contains startDate (which is firstDate)
-          const quarterStart = new Date(feature.startAt.getFullYear(), Math.floor(feature.startAt.getMonth() / 3) * 3, 1);
-          const firstQuarterStart = new Date(startDate.getFullYear(), Math.floor(startDate.getMonth() / 3) * 3, 1);
-          leftPx = differenceInQuarters(quarterStart, firstQuarterStart) * pixelsPerQuarter;
+          // If not found, calculate difference from firstDate
+          if (firstQuarterIndex >= 0) {
+            // Calculate difference in quarters from firstDate
+            const quartersDiff = differenceInQuarters(quarterStart, firstQuarterStart);
+            leftPx = quartersDiff * pixelsPerQuarter;
+          } else {
+            // Last resort: use difference from firstDate
+            leftPx = differenceInQuarters(quarterStart, firstDate) * pixelsPerQuarter;
+          }
         }
         
         if (startIndex >= 0 && endIndex >= 0 && endIndex >= startIndex) {
@@ -350,11 +622,13 @@ const FeatureBar = React.memo(function FeatureBar({ feature, startDate, pixelsPe
         } else if (startIndex >= 0) {
           // Start found but end not found - use minimum width
           widthPx = pixelsPerQuarter;
+        } else if (endIndex >= 0) {
+          // End found but start not found
+          widthPx = pixelsPerQuarter;
         } else {
-          // Fallback to differenceInQuarters if index not found
-          const quarterStart = new Date(feature.startAt.getFullYear(), Math.floor(feature.startAt.getMonth() / 3) * 3, 1);
-          const quarterEnd = new Date(feature.endAt.getFullYear(), Math.floor(feature.endAt.getMonth() / 3) * 3, 1);
-          widthPx = Math.max(pixelsPerQuarter, (differenceInQuarters(quarterEnd, quarterStart) + 1) * pixelsPerQuarter);
+          // Neither found - calculate from quarter difference
+          const quartersSpan = differenceInQuarters(quarterEnd, quarterStart) + 1;
+          widthPx = Math.max(pixelsPerQuarter, quartersSpan * pixelsPerQuarter);
         }
         break;
       }
@@ -393,8 +667,54 @@ const FeatureBar = React.memo(function FeatureBar({ feature, startDate, pixelsPe
         widthPx = differenceInDays(feature.endAt, feature.startAt) * pixelsPerDay;
     }
     
-    return { left: leftPx, width: widthPx };
-  }, [feature.startAt, feature.endAt, startDate, viewMode, pixelsPerDay, pixelsPerWeek, pixelsPerMonth, pixelsPerQuarter, pixelsPerYear, days, weeks, months, quarters, years]);
+    // Calculate visible range width
+    const visibleWidth = (() => {
+      switch (viewMode) {
+        case 'days':
+          return filteredDates.filteredDays.length * pixelsPerDay;
+        case 'weeks':
+          return filteredDates.filteredWeeks.length * pixelsPerWeek;
+        case 'months':
+          return filteredDates.filteredMonths.length * pixelsPerMonth;
+        case 'quarters':
+          return filteredDates.filteredQuarters.length * pixelsPerQuarter;
+        case 'years':
+          return filteredDates.filteredYears.length * pixelsPerYear;
+        default:
+          return filteredDates.filteredDays.length * pixelsPerDay;
+      }
+    })();
+
+    // Clip task bar to visible range
+    let clippedLeft = leftPx;
+    let clippedWidth = widthPx;
+    let clippedLeftSide = false;
+    let clippedRightSide = false;
+
+    // Check if task extends beyond visible range
+    if (leftPx < 0) {
+      clippedLeftSide = true;
+      clippedWidth = widthPx + leftPx; // Reduce width by amount extending left
+      clippedLeft = 0;
+    }
+
+    if (leftPx + widthPx > visibleWidth) {
+      clippedRightSide = true;
+      clippedWidth = Math.max(0, visibleWidth - clippedLeft);
+    }
+
+    // Ensure width is not negative
+    clippedWidth = Math.max(0, clippedWidth);
+
+    return { 
+      left: clippedLeft, 
+      width: clippedWidth,
+      clippedLeft: clippedLeftSide,
+      clippedRight: clippedRightSide,
+      originalLeft: leftPx,
+      originalWidth: widthPx
+    };
+  }, [feature.startAt, feature.endAt, startDate, firstDate, viewMode, pixelsPerDay, pixelsPerWeek, pixelsPerMonth, pixelsPerQuarter, pixelsPerYear, days, weeks, months, quarters, years, filteredDates]);
 
   const style = {
     left: `${left}px`,
@@ -402,6 +722,7 @@ const FeatureBar = React.memo(function FeatureBar({ feature, startDate, pixelsPe
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 50 : 10,
     transform: transform ? `translate3d(${transform.x}px, 0, 0)` : undefined,
+    overflow: 'hidden', // Clip content that extends beyond bounds
   };
 
   const statusColor = feature.status?.color || 'hsl(var(--text-tertiary) / 0.7)';
@@ -456,27 +777,64 @@ const FeatureBar = React.memo(function FeatureBar({ feature, startDate, pixelsPe
     return 'hsl(var(--primary) / 0.90)';
   };
 
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        'absolute top-2 left-0 h-11 rounded-lg transition-opacity duration-200 cursor-grab active:cursor-grabbing group',
-        isDragging && 'z-50 opacity-40'
+  // Tooltip content
+  const tooltipContent = (
+    <div className="flex flex-col gap-1">
+      <div className="font-semibold">{feature.name}</div>
+      {feature.assignee && (
+        <div className="text-white/80">
+          <span className="text-white/60">Assignee:</span> {feature.assignee}
+        </div>
       )}
-      data-draggable="true"
-      onMouseDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-      {...listeners}
-      {...attributes}
-    >
+      {feature.workedHours !== undefined && (
+        <div className="text-white/80">
+          <span className="text-white/60">Worked:</span> {feature.workedHours}h
+        </div>
+      )}
+      <div className="text-white/60 text-[10px] mt-0.5">
+        {format(feature.startAt, 'MMM d, yyyy')} - {format(feature.endAt, 'MMM d, yyyy')}
+      </div>
+    </div>
+  );
+
+  return (
+    <GanttTooltip content={tooltipContent}>
       <div
-        className="h-full rounded-lg flex items-center px-3 backdrop-blur-md transition-colors duration-200 relative"
+        ref={setNodeRef}
+        style={style}
+        className={cn(
+          'absolute top-2 left-0 h-11 rounded-lg transition-opacity duration-200 cursor-grab active:cursor-grabbing group',
+          isDragging && 'z-50 opacity-40'
+        )}
+        data-draggable="true"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        {...listeners}
+        {...attributes}
+      >
+      <div
+        className={cn(
+          "h-full rounded-lg flex items-center px-3 backdrop-blur-md transition-colors duration-200 relative",
+          clippedLeft && "rounded-l-none",
+          clippedRight && "rounded-r-none"
+        )}
         style={{
           background: getLightColor(statusColor),
           border: `1.5px solid ${getBorderColor(statusColor)}`,
         }}
       >
+        {/* Left clip indicator */}
+        {clippedLeft && (
+          <div className="absolute left-0 top-0 bottom-0 w-2 bg-gradient-to-r from-black/40 to-transparent flex items-center justify-center">
+            <div className="w-0.5 h-3 bg-white/60 rounded-full"></div>
+          </div>
+        )}
+        {/* Right clip indicator */}
+        {clippedRight && (
+          <div className="absolute right-0 top-0 bottom-0 w-2 bg-gradient-to-l from-black/40 to-transparent flex items-center justify-center">
+            <div className="w-0.5 h-3 bg-white/60 rounded-full"></div>
+          </div>
+        )}
         {/* Left resize handle - for changing start date (draggable) */}
         {onResize && (
           <div
@@ -534,6 +892,7 @@ const FeatureBar = React.memo(function FeatureBar({ feature, startDate, pixelsPe
         )}
       </div>
     </div>
+    </GanttTooltip>
   );
 });
 
@@ -580,11 +939,14 @@ function DateDropZone({ date, startDate, viewMode, pixelWidth, pixelsPerDay, pix
         return dateArray.findIndex(d => d.getFullYear() === year && d.getMonth() === month);
       }
       case 'quarters': {
+        // eachQuarterOfInterval returns dates at the start of each quarter
+        // We need to find the quarter that contains the target date
         const year = targetDate.getFullYear();
         const quarterMonth = Math.floor(targetDate.getMonth() / 3) * 3;
         return dateArray.findIndex(d => {
           const dYear = d.getFullYear();
           const dMonth = d.getMonth();
+          // Check if this date is in the same quarter (same year and same quarter start month)
           return dYear === year && Math.floor(dMonth / 3) * 3 === quarterMonth;
         });
       }
@@ -615,7 +977,18 @@ function DateDropZone({ date, startDate, viewMode, pixelWidth, pixelsPerDay, pix
       }
       case 'quarters': {
         const index = findDateIndex(date, quarters, 'quarters');
-        return index >= 0 ? index * pixelsPerQuarter : differenceInQuarters(date, startDate) * pixelsPerQuarter;
+        if (index >= 0) {
+          return index * pixelsPerQuarter;
+        } else {
+          // Fallback: find quarter manually
+          const quarterStart = new Date(date.getFullYear(), Math.floor(date.getMonth() / 3) * 3, 1);
+          const firstQuarterStart = new Date(startDate.getFullYear(), Math.floor(startDate.getMonth() / 3) * 3, 1);
+          const manualIndex = quarters.findIndex(q => {
+            const qQuarterStart = new Date(q.getFullYear(), Math.floor(q.getMonth() / 3) * 3, 1);
+            return qQuarterStart.getTime() === quarterStart.getTime();
+          });
+          return manualIndex >= 0 ? manualIndex * pixelsPerQuarter : differenceInQuarters(quarterStart, firstQuarterStart) * pixelsPerQuarter;
+        }
       }
       case 'years': {
         const index = findDateIndex(date, years, 'years');

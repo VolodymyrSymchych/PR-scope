@@ -14,7 +14,7 @@ export function GanttSidebar({ children, className }: GanttSidebarProps) {
   const { onAddItem } = useGantt();
 
   return (
-    <div className={cn('w-64 flex-shrink-0 backdrop-blur-xl bg-black/[0.30] border-r border-white/[0.15] overflow-y-auto flex flex-col min-h-0', className)}>
+    <div className={cn('w-48 flex-shrink-0 backdrop-blur-xl bg-black/[0.30] border-r border-white/[0.15] overflow-y-auto flex flex-col min-h-0', className)}>
       {onAddItem && (
         <div className="p-4 pb-3 border-b border-white/[0.12]">
           <button
@@ -67,8 +67,9 @@ interface GanttSidebarItemProps {
 }
 
 export function GanttSidebarItem({ feature, onSelectItem, onAddSubtask, className, depth = 0 }: GanttSidebarItemProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const { collapsedTasks, toggleCollapsed } = useGantt();
   const hasChildren = feature.children && feature.children.length > 0;
+  const isExpanded = !collapsedTasks.has(feature.id);
   const statusColor = feature.status?.color || 'hsl(var(--text-tertiary) / 0.7)';
 
   // Extract base color from HSL and use it for sidebar item
@@ -114,7 +115,7 @@ export function GanttSidebarItem({ feature, onSelectItem, onAddSubtask, classNam
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsExpanded(!isExpanded);
+                  toggleCollapsed(feature.id);
                 }}
                 className="p-0.5 hover:bg-white/10 rounded transition-colors flex-shrink-0"
               >
@@ -131,6 +132,11 @@ export function GanttSidebarItem({ feature, onSelectItem, onAddSubtask, classNam
             >
               {feature.name}
             </span>
+            {hasChildren && (
+              <span className="text-[10px] font-bold text-white/60 bg-white/10 px-1.5 py-0.5 rounded-md">
+                {feature.children!.length}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1.5">
             {onAddSubtask && (

@@ -191,6 +191,7 @@ export const tasks = pgTable('tasks', {
   id: serial('id').primaryKey(),
   projectId: integer('project_id').references(() => projects.id, { onDelete: 'cascade' }),
   userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  parentId: integer('parent_id').references(() => tasks.id, { onDelete: 'cascade' }),
   title: varchar('title', { length: 255 }).notNull(),
   description: text('description'),
   assignee: varchar('assignee', { length: 100 }),
@@ -452,6 +453,14 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   user: one(users, {
     fields: [tasks.userId],
     references: [users.id],
+  }),
+  parent: one(tasks, {
+    fields: [tasks.parentId],
+    references: [tasks.id],
+    relationName: 'subtasks',
+  }),
+  subtasks: many(tasks, {
+    relationName: 'subtasks',
   }),
   timeEntries: many(timeEntries),
   fileAttachments: many(fileAttachments),
