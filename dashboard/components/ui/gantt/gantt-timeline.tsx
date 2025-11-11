@@ -48,26 +48,38 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
   const rangeRef = useRef(viewMode);
   const [showLeftButton, setShowLeftButton] = React.useState(false);
   const [showRightButton, setShowRightButton] = React.useState(false);
+  const [isScrollingToDate, setIsScrollingToDate] = React.useState(false);
 
-  // Update range ref when view mode changes (no auto-scroll to current date)
-  useEffect(() => {
-    rangeRef.current = viewMode;
-  }, [viewMode]);
-
-  // Track if initial scroll has been performed
-  const hasScrolledRef = useRef(false);
+  // Track if initial scroll has been performed for current view mode
+  const hasScrolledRef = useRef<string | null>(null);
 
   // Scroll to current date on initial load and when view mode changes
   useEffect(() => {
+    // Reset scroll flag when view mode changes
+    const currentViewModeKey = `${viewMode}-${firstDate?.getTime()}`;
+    const shouldScroll = hasScrolledRef.current !== currentViewModeKey;
+    
+    if (shouldScroll) {
+      setIsScrollingToDate(true);
+    }
+
     const scrollToCurrentDate = (isInitial: boolean = false) => {
       const contentEl = contentScrollRef?.current;
       const headerEl = headerScrollRef?.current;
-      if (!contentEl || !headerEl) return;
+      if (!contentEl || !headerEl) {
+        setIsScrollingToDate(false);
+        return;
+      }
 
-      // Check if content is ready
-      if (contentEl.scrollWidth === 0) {
+      // Check if content is ready and dates are loaded
+      if (contentEl.scrollWidth === 0 || 
+          (viewMode === 'days' && days.length === 0) ||
+          (viewMode === 'weeks' && weeks.length === 0) ||
+          (viewMode === 'months' && months.length === 0) ||
+          (viewMode === 'quarters' && quarters.length === 0) ||
+          (viewMode === 'years' && years.length === 0)) {
         // Retry after a delay if content not ready
-        setTimeout(() => scrollToCurrentDate(isInitial), 100);
+        setTimeout(() => scrollToCurrentDate(isInitial), 150);
         return;
       }
 
@@ -183,8 +195,8 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
         const maxScroll = Math.max(0, contentEl.scrollWidth - clientWidth);
         const finalScrollPosition = Math.max(0, Math.min(scrollPosition, maxScroll));
 
-        // Use instant scroll for initial load, smooth for resize/view change
-        const scrollBehavior = isInitial ? 'auto' : 'smooth';
+        // Use instant scroll (no animation) to prevent jumping
+        const scrollBehavior = 'auto';
 
         // Use requestAnimationFrame to ensure DOM is ready
         requestAnimationFrame(() => {
@@ -192,44 +204,60 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
             if (contentEl && headerEl && contentEl.scrollWidth > 0) {
               contentEl.scrollTo({ left: finalScrollPosition, behavior: scrollBehavior });
               headerEl.scrollTo({ left: finalScrollPosition, behavior: scrollBehavior });
-              if (isInitial) {
-                hasScrolledRef.current = true;
-              }
+              
+              // Mark as scrolled for this view mode
+              hasScrolledRef.current = currentViewModeKey;
+              setIsScrollingToDate(false);
             }
           });
         });
-      } else if (currentDateIndex < 0 && dateArray.length > 0 && !hasScrolledRef.current) {
-        // If current date not found on initial load, try again after a short delay
+      } else if (currentDateIndex < 0 && dateArray.length > 0 && shouldScroll) {
+        // If current date not found, try again after a short delay
         setTimeout(() => {
           scrollToCurrentDate(isInitial);
         }, 200);
+      } else {
+        setIsScrollingToDate(false);
       }
     };
 
-    // Reset scroll flag when view mode changes
-    if (rangeRef.current !== viewMode) {
-      hasScrolledRef.current = false;
-      rangeRef.current = viewMode;
+    // Update range ref
+    rangeRef.current = viewMode;
+
+    // Only scroll if view mode changed or initial load
+    if (shouldScroll) {
+      // Scroll to current date on initial load or view mode change
+      const timeoutId = setTimeout(() => {
+        scrollToCurrentDate(true);
+      }, 600); // Delay to ensure dates are loaded and rendered
+
+      return () => {
+        clearTimeout(timeoutId);
+        setIsScrollingToDate(false);
+      };
     }
 
-    // Scroll to current date on initial load or view mode change
-    const isInitial = !hasScrolledRef.current;
-    const timeoutId = setTimeout(() => {
-      scrollToCurrentDate(isInitial);
-    }, isInitial ? 1000 : 300); // Longer delay for initial load to ensure everything is rendered
-
+    // Handle resize separately (no scroll, just update button visibility)
     let resizeTimeoutId: NodeJS.Timeout | null = null;
     const handleResize = () => {
-      // Debounce resize to avoid too many scroll calculations
+      // Just update button visibility, don't scroll
       if (resizeTimeoutId) clearTimeout(resizeTimeoutId);
       resizeTimeoutId = setTimeout(() => {
-        scrollToCurrentDate(false);
+        const contentEl = contentScrollRef?.current;
+        if (contentEl) {
+          const scrollLeft = contentEl.scrollLeft;
+          const scrollWidth = contentEl.scrollWidth;
+          const clientWidth = contentEl.clientWidth;
+          const threshold = clientWidth * 0.2;
+          
+          setShowLeftButton(scrollLeft < threshold);
+          setShowRightButton(scrollWidth - scrollLeft - clientWidth < threshold);
+        }
       }, 300);
     };
 
     window.addEventListener('resize', handleResize);
     return () => {
-      clearTimeout(timeoutId);
       window.removeEventListener('resize', handleResize);
       if (resizeTimeoutId) clearTimeout(resizeTimeoutId);
     };
@@ -396,6 +424,15 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
       {children}
       {/* Loading indicator when extending range */}
       <RangeExtensionIndicator />
+      {/* Loading indicator when scrolling to current date */}
+      {isScrollingToDate && (
+        <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-50 pointer-events-none">
+          <div className="bg-black/80 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 backdrop-blur-sm border border-white/20">
+            <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+            <span>Перехід до поточної дати...</span>
+          </div>
+        </div>
+      )}
       {/* Extension buttons at edges - positioned relative to container */}
       {showLeftButton && (
         <button
