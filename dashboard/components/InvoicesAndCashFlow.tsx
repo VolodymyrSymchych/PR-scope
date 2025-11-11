@@ -376,7 +376,11 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
                             <Download className="w-4 h-4 text-text-secondary" />
                           </button>
                           <button 
-                            onClick={() => handleEditInvoice(invoice)}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleEditInvoice(invoice);
+                            }}
                             className="p-1 hover:bg-white/10 rounded transition-colors"
                             title="Edit invoice"
                           >
