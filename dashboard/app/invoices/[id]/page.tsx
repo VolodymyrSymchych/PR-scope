@@ -78,11 +78,9 @@ export default function InvoiceDetailPage() {
       const invoiceForPDF = {
         ...invoice,
         dueDate: invoice.dueDate 
-          ? (invoice.dueDate instanceof Date 
-              ? invoice.dueDate.toISOString() 
-              : typeof invoice.dueDate === 'string' 
-                ? invoice.dueDate 
-                : new Date(invoice.dueDate).toISOString())
+          ? (typeof invoice.dueDate === 'string' 
+              ? invoice.dueDate 
+              : new Date(invoice.dueDate).toISOString())
           : null,
         projectName: project?.name || '',
       };
