@@ -373,16 +373,21 @@ export class DatabaseStorage {
   }
 
   async createTask(data: InsertTask): Promise<Task> {
-    const [task] = await db.insert(tasks).values(data).returning();
+    const result = await db.insert(tasks).values(data).returning();
+    const [task] = result as Task[];
+    if (!task) {
+      throw new Error('Failed to create task');
+    }
     return task;
   }
 
   async updateTask(taskId: number, data: Partial<InsertTask>): Promise<Task | undefined> {
-    const [task] = await db
+    const result = await db
       .update(tasks)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(tasks.id, taskId))
       .returning();
+    const [task] = result as Task[];
     return task;
   }
 
@@ -400,10 +405,14 @@ export class DatabaseStorage {
   }
 
   async createSubtask(parentId: number, data: Omit<InsertTask, 'parentId'>): Promise<Task> {
-    const [subtask] = await db
+    const result = await db
       .insert(tasks)
       .values({ ...data, parentId })
       .returning();
+    const [subtask] = result as Task[];
+    if (!subtask) {
+      throw new Error('Failed to create subtask');
+    }
 
     // Update parent date range if subtask extends beyond parent dates
     await this.updateParentDateRange(parentId);
