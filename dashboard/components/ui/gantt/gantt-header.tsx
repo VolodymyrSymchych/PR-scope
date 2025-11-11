@@ -185,6 +185,24 @@ export function GanttHeader() {
   const { days, weeks, months, quarters, years, pixelsPerDay, pixelsPerWeek, pixelsPerMonth, pixelsPerQuarter, pixelsPerYear, viewMode } = useGantt();
   const { headerScrollRef } = useScrollSync();
 
+  // Calculate total width to match feature rows exactly
+  const totalWidth = useMemo(() => {
+    switch (viewMode) {
+      case 'days':
+        return days.length * pixelsPerDay;
+      case 'weeks':
+        return weeks.length * pixelsPerWeek;
+      case 'months':
+        return months.length * pixelsPerMonth;
+      case 'quarters':
+        return quarters.length * pixelsPerQuarter;
+      case 'years':
+        return years.length * pixelsPerYear;
+      default:
+        return days.length * pixelsPerDay;
+    }
+  }, [viewMode, days, weeks, months, quarters, years, pixelsPerDay, pixelsPerWeek, pixelsPerMonth, pixelsPerQuarter, pixelsPerYear]);
+
   return (
     <div
       ref={headerScrollRef}
@@ -194,7 +212,7 @@ export function GanttHeader() {
         msOverflowStyle: 'none',
       }}
     >
-      <div className="flex h-16">
+      <div className="flex h-16" style={{ width: `${totalWidth}px`, minWidth: `${totalWidth}px` }}>
         {viewMode === 'days' && days.map((day) => (
           <DayCell key={day.toISOString()} day={day} pixelsPerDay={pixelsPerDay} />
         ))}
