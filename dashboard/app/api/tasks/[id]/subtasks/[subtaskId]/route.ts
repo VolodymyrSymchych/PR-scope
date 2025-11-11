@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { storage } from '../../../../../../server/storage';
+import { storage } from '@/server/storage';
 import { redis } from '@/lib/redis';
 
 // PUT /api/tasks/[id]/subtasks/[subtaskId] - Update a subtask

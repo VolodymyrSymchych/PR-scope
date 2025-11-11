@@ -23,6 +23,12 @@ const nextConfig = {
       path.join(dir, '../node_modules'),
       'node_modules',
     ];
+    
+    // Add alias for server directory at root level
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@/server': path.join(dir, '../server'),
+    };
 
     // Suppress warnings for deprecated Tailwind CSS line-clamp plugin
     // (line-clamp is now built into Tailwind CSS v3.3+)
