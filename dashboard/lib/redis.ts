@@ -69,10 +69,31 @@ export async function cached<T>(
 
     // Fetch and cache
     const data = await fetcher();
-    await redis.set(key, JSON.stringify(data), 'EX', ttl);
+    
+    // Set with TTL - handle both Upstash and IORedis
+    try {
+      if ('setex' in redis && typeof redis.setex === 'function') {
+        // IORedis - use setex
+        await (redis as any).setex(key, ttl, JSON.stringify(data));
+      } else if ('expire' in redis && typeof redis.expire === 'function') {
+        // Upstash Redis - use set + expire separately
+        await redis.set(key, JSON.stringify(data));
+        await (redis as any).expire(key, ttl);
+      } else {
+        // Fallback - just set without TTL
+        await redis.set(key, JSON.stringify(data));
+      }
+    } catch (setError: any) {
+      // If set fails, log but don't fail the request
+      const errorMsg = setError?.message || setError?.toString() || String(setError);
+      console.warn('Failed to cache data:', errorMsg);
+    }
+    
     return data;
-  } catch (error) {
-    console.error('Cache error:', error);
+  } catch (error: any) {
+    // Better error handling
+    const errorMessage = error?.message || error?.toString() || 'Unknown cache error';
+    console.error('Cache error:', errorMessage, error);
     // Fallback to fetcher on cache error
     return fetcher();
   }
@@ -138,26 +159,33 @@ export async function rateLimit(
       await ioredis.expire(key, window);
 
       return { success: true, remaining: limit - count - 1, reset: now + window * 1000 };
-    } else if ('incr' in redis && typeof redis.incr === 'function') {
-      // Upstash - use simple counter
-      const upstash = redis as any;
-      const count = await upstash.incr(key);
-      if (count === 1) {
-        await upstash.expire(key, window);
+    } else {
+      // Upstash - use simple counter with expire
+      try {
+        const upstash = redis as any;
+        const count = await upstash.incr(key);
+        
+        // Set expire only on first increment
+        if (count === 1) {
+          await upstash.expire(key, window);
+        }
+
+        const success = count <= limit;
+        return {
+          success,
+          remaining: Math.max(0, limit - count),
+          reset: now + window * 1000
+        };
+      } catch (upstashError: any) {
+        const errorMessage = upstashError?.message || upstashError?.toString() || 'Unknown error';
+        console.error('Upstash rate limit error:', errorMessage);
+        // Allow on error
+        return { success: true, remaining: limit, reset: Date.now() + window * 1000 };
       }
-
-      const success = count <= limit;
-      return {
-        success,
-        remaining: Math.max(0, limit - count),
-        reset: now + window * 1000
-      };
     }
-
-    // Fallback if neither method is available
-    return { success: true, remaining: limit, reset: now + window * 1000 };
-  } catch (error) {
-    console.error('Rate limit error:', error);
+  } catch (error: any) {
+    const errorMessage = error?.message || error?.toString() || 'Unknown error';
+    console.error('Rate limit error:', errorMessage);
     // Allow on error
     return { success: true, remaining: limit, reset: Date.now() + window * 1000 };
   }
@@ -176,9 +204,20 @@ export async function cacheSession(
 
   try {
     const key = `session:${token}`;
-    await redis.set(key, userId.toString(), 'EX', ttl);
-  } catch (error) {
-    console.error('Session cache error:', error);
+    if ('setex' in redis && typeof redis.setex === 'function') {
+      // IORedis - use setex
+      await (redis as any).setex(key, ttl, userId.toString());
+    } else if ('expire' in redis && typeof redis.expire === 'function') {
+      // Upstash Redis - use set + expire separately
+      await redis.set(key, userId.toString());
+      await (redis as any).expire(key, ttl);
+    } else {
+      // Fallback - just set without TTL
+      await redis.set(key, userId.toString());
+    }
+  } catch (error: any) {
+    const errorMessage = error?.message || error?.toString() || 'Unknown error';
+    console.error('Session cache error:', errorMessage);
   }
 }
 
