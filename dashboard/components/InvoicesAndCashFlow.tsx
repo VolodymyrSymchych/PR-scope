@@ -135,11 +135,17 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
     try {
       // Fetch full invoice data for editing
       const response = await axios.get(`/api/invoices/${invoice.id}`);
-      setEditingInvoice(response.data.invoice);
-      setShowInvoiceForm(true);
-    } catch (error) {
+      if (response.data && response.data.invoice) {
+        setEditingInvoice(response.data.invoice);
+        setShowInvoiceForm(true);
+      } else {
+        console.error('Invalid response format:', response.data);
+        alert('Failed to load invoice data. Invalid response format.');
+      }
+    } catch (error: any) {
       console.error('Failed to load invoice:', error);
-      alert('Failed to load invoice. Please try again.');
+      const errorMessage = error?.response?.data?.error || error?.message || 'Failed to load invoice. Please try again.';
+      alert(errorMessage);
     }
   };
 
