@@ -54,12 +54,22 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
     rangeRef.current = viewMode;
   }, [viewMode]);
 
-  // Scroll to current date when window is resized
+  // Track if initial scroll has been performed
+  const hasScrolledRef = useRef(false);
+
+  // Scroll to current date on initial load and when view mode changes
   useEffect(() => {
-    const scrollToCurrentDate = () => {
+    const scrollToCurrentDate = (isInitial: boolean = false) => {
       const contentEl = contentScrollRef?.current;
       const headerEl = headerScrollRef?.current;
       if (!contentEl || !headerEl) return;
+
+      // Check if content is ready
+      if (contentEl.scrollWidth === 0) {
+        // Retry after a delay if content not ready
+        setTimeout(() => scrollToCurrentDate(isInitial), 100);
+        return;
+      }
 
       const currentDate = new Date();
 
@@ -173,34 +183,47 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
         const maxScroll = Math.max(0, contentEl.scrollWidth - clientWidth);
         const finalScrollPosition = Math.max(0, Math.min(scrollPosition, maxScroll));
 
+        // Use instant scroll for initial load, smooth for resize/view change
+        const scrollBehavior = isInitial ? 'auto' : 'smooth';
+
         // Use requestAnimationFrame to ensure DOM is ready
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             if (contentEl && headerEl && contentEl.scrollWidth > 0) {
-              contentEl.scrollTo({ left: finalScrollPosition, behavior: 'smooth' });
-              headerEl.scrollTo({ left: finalScrollPosition, behavior: 'smooth' });
+              contentEl.scrollTo({ left: finalScrollPosition, behavior: scrollBehavior });
+              headerEl.scrollTo({ left: finalScrollPosition, behavior: scrollBehavior });
+              if (isInitial) {
+                hasScrolledRef.current = true;
+              }
             }
           });
         });
-      } else if (currentDateIndex < 0 && dateArray.length > 0) {
-        // If current date not found, try again after a short delay
+      } else if (currentDateIndex < 0 && dateArray.length > 0 && !hasScrolledRef.current) {
+        // If current date not found on initial load, try again after a short delay
         setTimeout(() => {
-          scrollToCurrentDate();
+          scrollToCurrentDate(isInitial);
         }, 200);
       }
     };
 
-    // Scroll to current date on view mode change or initial load
+    // Reset scroll flag when view mode changes
+    if (rangeRef.current !== viewMode) {
+      hasScrolledRef.current = false;
+      rangeRef.current = viewMode;
+    }
+
+    // Scroll to current date on initial load or view mode change
+    const isInitial = !hasScrolledRef.current;
     const timeoutId = setTimeout(() => {
-      scrollToCurrentDate();
-    }, 800); // Increased delay to ensure dates are fully loaded and rendered
+      scrollToCurrentDate(isInitial);
+    }, isInitial ? 1000 : 300); // Longer delay for initial load to ensure everything is rendered
 
     let resizeTimeoutId: NodeJS.Timeout | null = null;
     const handleResize = () => {
       // Debounce resize to avoid too many scroll calculations
       if (resizeTimeoutId) clearTimeout(resizeTimeoutId);
       resizeTimeoutId = setTimeout(() => {
-        scrollToCurrentDate();
+        scrollToCurrentDate(false);
       }, 300);
     };
 
