@@ -23,6 +23,15 @@ export async function POST(
       return NextResponse.json({ error: 'Invoice already paid' }, { status: 400 });
     }
 
+    // Get base URL from environment variable - required for production
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
+    if (!baseUrl) {
+      return NextResponse.json(
+        { error: 'NEXT_PUBLIC_APP_URL environment variable is required' },
+        { status: 500 }
+      );
+    }
+
     // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -40,8 +49,8 @@ export async function POST(
         },
       ],
       mode: 'payment',
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/invoices/public/${params.token}?payment=success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/invoices/public/${params.token}?payment=cancelled`,
+      success_url: `${baseUrl}/invoices/public/${params.token}?payment=success`,
+      cancel_url: `${baseUrl}/invoices/public/${params.token}?payment=cancelled`,
       metadata: {
         invoiceId: invoice.id.toString(),
         invoiceToken: params.token,

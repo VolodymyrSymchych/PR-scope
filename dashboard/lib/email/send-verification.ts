@@ -20,7 +20,11 @@ export async function sendVerificationEmail(
   username: string,
   token: string
 ) {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5000';
+  // Get base URL from environment variable - required for production
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
+  if (!baseUrl) {
+    throw new Error('NEXT_PUBLIC_APP_URL environment variable is required for sending verification emails');
+  }
   const verificationUrl = `${baseUrl}/verify?token=${token}`;
 
   try {
@@ -55,7 +59,11 @@ export async function sendPasswordResetEmail(
   username: string,
   resetToken: string
 ) {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5000';
+  // Get base URL from environment variable - required for production
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
+  if (!baseUrl) {
+    throw new Error('NEXT_PUBLIC_APP_URL environment variable is required for sending password reset emails');
+  }
   const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
 
   try {

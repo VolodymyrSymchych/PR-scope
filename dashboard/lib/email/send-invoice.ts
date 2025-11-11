@@ -78,7 +78,13 @@ export async function sendInvoiceEmail(
     throw new Error('Client email is required to send invoice');
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
+  // Get base URL from environment variable - required for production
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
+  if (!baseUrl) {
+    console.warn('NEXT_PUBLIC_APP_URL is not set. Using placeholder URL. Please set it in your environment variables.');
+    // Don't use localhost in production - it won't work
+    throw new Error('NEXT_PUBLIC_APP_URL environment variable is required for sending invoice emails');
+  }
   const publicUrl = invoice.publicToken
     ? `${baseUrl}/invoices/public/${invoice.publicToken}`
     : `${baseUrl}/invoices/${invoice.id}`;
@@ -129,7 +135,13 @@ export async function sendOverdueReminder(invoice: Invoice): Promise<void> {
     return; // Not overdue yet
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
+  // Get base URL from environment variable - required for production
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
+  if (!baseUrl) {
+    console.warn('NEXT_PUBLIC_APP_URL is not set. Using placeholder URL. Please set it in your environment variables.');
+    // Don't use localhost in production - it won't work
+    throw new Error('NEXT_PUBLIC_APP_URL environment variable is required for sending invoice emails');
+  }
   const invoiceUrl = `${baseUrl}/invoices/${invoice.id}`;
 
   try {
@@ -177,7 +189,13 @@ export async function sendDueDateReminder(invoice: Invoice): Promise<void> {
     return; // Only send 3 days before due date
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
+  // Get base URL from environment variable - required for production
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
+  if (!baseUrl) {
+    console.warn('NEXT_PUBLIC_APP_URL is not set. Using placeholder URL. Please set it in your environment variables.');
+    // Don't use localhost in production - it won't work
+    throw new Error('NEXT_PUBLIC_APP_URL environment variable is required for sending invoice emails');
+  }
   const invoiceUrl = `${baseUrl}/invoices/${invoice.id}`;
 
   try {
@@ -223,7 +241,13 @@ export async function sendStatusChangeEmail(
     return; // No email to send to
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
+  // Get base URL from environment variable - required for production
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
+  if (!baseUrl) {
+    console.warn('NEXT_PUBLIC_APP_URL is not set. Using placeholder URL. Please set it in your environment variables.');
+    // Don't use localhost in production - it won't work
+    throw new Error('NEXT_PUBLIC_APP_URL environment variable is required for sending invoice emails');
+  }
   const invoiceUrl = `${baseUrl}/invoices/${invoice.id}`;
 
   try {

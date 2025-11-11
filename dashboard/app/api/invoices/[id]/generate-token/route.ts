@@ -41,7 +41,14 @@ export async function POST(
       tokenExpiresAt,
     });
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
+    // Get base URL from environment variable - required for production
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_API_URL;
+    if (!baseUrl) {
+      return NextResponse.json(
+        { error: 'NEXT_PUBLIC_APP_URL environment variable is required' },
+        { status: 500 }
+      );
+    }
     const publicUrl = `${baseUrl}/invoices/public/${publicToken}`;
 
     return NextResponse.json({
