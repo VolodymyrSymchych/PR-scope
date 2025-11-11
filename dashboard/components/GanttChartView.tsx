@@ -306,7 +306,7 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
 
       {/* Gantt Chart */}
       <div className="glass-medium rounded-2xl border border-white/10 w-full flex-1 flex flex-col overflow-hidden min-h-0">
-        <div className="h-full min-h-0 flex flex-col">
+        <div className="h-full min-h-0 flex flex-col overflow-hidden">
           <GanttProvider
             features={features}
             range={viewRange}

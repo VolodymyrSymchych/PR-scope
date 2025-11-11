@@ -25,11 +25,11 @@ export function ConditionalLayout({ children }: ConditionalLayoutProps) {
   // Render with sidebar and header for all other pages
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen relative">
+      <div className="flex h-screen relative overflow-hidden">
         <Sidebar />
         <MainContent>
           <Header />
-          <div className="p-8">
+          <div className="p-8 h-full flex flex-col overflow-hidden min-h-0">
             {children}
           </div>
         </MainContent>
