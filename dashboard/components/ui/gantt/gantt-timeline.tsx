@@ -279,7 +279,12 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
     <div
       ref={contentScrollRef}
       className={cn('flex-1 overflow-auto gantt-scrollbar relative min-h-0 min-w-0', className)}
-      style={{ overflowX: 'auto', overflowY: 'auto' }}
+      style={{ 
+        overflowX: 'auto', 
+        overflowY: 'auto',
+        maxHeight: '100%',
+        height: '100%'
+      }}
     >
       {children}
     </div>
