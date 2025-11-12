@@ -1,4 +1,4 @@
-import { eq, and, or, desc, isNull, gte, lte, sql, isNotNull, inArray } from 'drizzle-orm';
+import { eq, and, or, desc, isNull, gte, lte, sql, isNotNull, inArray, sum } from 'drizzle-orm';
 import { db } from './db';
 import {
   users,
@@ -305,8 +305,43 @@ export class DatabaseStorage {
     return !!ownedProject;
   }
 
+  // Helper to add workedHours to tasks from time entries
+  private async addWorkedHoursToTasks(tasksArray: Task[]): Promise<(Task & { workedHours: number })[]> {
+    if (tasksArray.length === 0) return [];
+
+    const taskIds = tasksArray.map(t => t.id);
+
+    // Get sum of duration (in minutes) for each task from time entries
+    const workedHoursData = await db
+      .select({
+        taskId: timeEntries.taskId,
+        totalMinutes: sum(timeEntries.duration),
+      })
+      .from(timeEntries)
+      .where(inArray(timeEntries.taskId, taskIds))
+      .groupBy(timeEntries.taskId);
+
+    // Create a map of taskId -> hours
+    const hoursMap = new Map<number, number>();
+    workedHoursData.forEach(row => {
+      if (row.taskId && row.totalMinutes) {
+        // Convert minutes to hours, round to 1 decimal place
+        const hours = Math.round((Number(row.totalMinutes) / 60) * 10) / 10;
+        hoursMap.set(row.taskId, hours);
+      }
+    });
+
+    // Add workedHours to each task
+    return tasksArray.map(task => ({
+      ...task,
+      workedHours: hoursMap.get(task.id) || 0,
+    }));
+  }
+
   // Tasks
-  async getTasks(userId?: number, projectId?: number): Promise<Task[]> {
+  async getTasks(userId?: number, projectId?: number): Promise<(Task & { workedHours: number })[]> {
+    let tasksResult: Task[];
+
     // If projectId is provided, show all tasks for that project (user must have access)
     if (projectId) {
       // Verify user has access to the project
@@ -317,12 +352,12 @@ export class DatabaseStorage {
         }
       }
       // Return all tasks for the project
-      return await db
+      tasksResult = await db
         .select()
         .from(tasks)
         .where(eq(tasks.projectId, projectId))
         .orderBy(desc(tasks.createdAt));
-    } 
+    }
     // If only userId is provided, show all tasks:
     // 1. Tasks created by the user (userId matches)
     // 2. Tasks from projects owned by the user
@@ -332,14 +367,14 @@ export class DatabaseStorage {
         .select({ id: projects.id })
         .from(projects)
         .where(eq(projects.userId, userId));
-      
+
       const projectIds = userProjects.map(p => p.id);
-      
+
       // Return tasks where:
       // - userId matches OR
       // - projectId is in user's projects
       if (projectIds.length > 0) {
-        return await db
+        tasksResult = await db
           .select()
           .from(tasks)
           .where(
@@ -351,20 +386,23 @@ export class DatabaseStorage {
           .orderBy(desc(tasks.createdAt));
       } else {
         // No projects, return only tasks created by user
-        return await db
+        tasksResult = await db
           .select()
           .from(tasks)
           .where(eq(tasks.userId, userId))
           .orderBy(desc(tasks.createdAt));
       }
-    } 
+    }
     // If neither is provided, return all tasks (shouldn't happen in normal flow)
     else {
-      return await db
+      tasksResult = await db
         .select()
         .from(tasks)
         .orderBy(desc(tasks.createdAt));
     }
+
+    // Add worked hours to all tasks
+    return await this.addWorkedHoursToTasks(tasksResult);
   }
 
   async getTask(taskId: number): Promise<Task | undefined> {

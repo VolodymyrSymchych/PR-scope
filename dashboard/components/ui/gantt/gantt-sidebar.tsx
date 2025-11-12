@@ -8,10 +8,12 @@ import { useGantt } from './gantt-provider';
 interface GanttSidebarProps {
   children: ReactNode;
   className?: string;
+  ganttType?: 'tasks' | 'projects';
 }
 
-export function GanttSidebar({ children, className }: GanttSidebarProps) {
+export function GanttSidebar({ children, className, ganttType = 'tasks' }: GanttSidebarProps) {
   const { onAddItem } = useGantt();
+  const buttonLabel = ganttType === 'projects' ? 'Add Project' : 'Add Task';
 
   return (
     <div className={cn('w-48 flex-shrink-0 backdrop-blur-xl bg-black/[0.30] border-r border-white/[0.15] overflow-y-auto flex flex-col min-h-0', className)}>
@@ -22,7 +24,7 @@ export function GanttSidebar({ children, className }: GanttSidebarProps) {
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary/20 hover:bg-primary/30 border border-primary/40 hover:border-primary/60 text-white font-medium text-sm transition-all duration-200 active:scale-[0.98] shadow-lg shadow-primary/10 hover:shadow-primary/20"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Task</span>
+            <span>{buttonLabel}</span>
           </button>
         </div>
       )}

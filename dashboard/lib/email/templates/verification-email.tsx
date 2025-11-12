@@ -9,6 +9,7 @@ import {
   Preview,
   Section,
   Text,
+  Hr,
 } from '@react-email/components';
 import * as React from 'react';
 
@@ -23,37 +24,57 @@ export const VerificationEmail = ({
 }: VerificationEmailProps) => (
   <Html>
     <Head />
-    <Preview>Verify your email address for Project Scope Analyzer</Preview>
+    <Preview>Welcome to Project Scope Analyzer</Preview>
     <Body style={main}>
       <Container style={container}>
-        <Heading style={h1}>Verify your email address</Heading>
-        <Text style={text}>Hi {username},</Text>
-        <Text style={text}>
-          Thanks for signing up for Project Scope Analyzer! We're excited to have you on board.
-        </Text>
-        <Text style={text}>
-          To get started, please verify your email address by clicking the button below:
-        </Text>
-        <Section style={buttonContainer}>
-          <Button style={button} href={verificationUrl}>
-            Verify Email Address
-          </Button>
+        <Section style={glassCard}>
+          <Section style={headerSection}>
+            <Heading style={h1}>Welcome</Heading>
+          </Section>
+          
+          <Section style={contentSection}>
+            <Text style={greeting}>Hi {username},</Text>
+            <Text style={text}>
+              Thank you for joining Project Scope Analyzer. We're thrilled to have you on board.
+            </Text>
+            <Text style={text}>
+              To complete your registration and get started, please verify your email address.
+            </Text>
+          </Section>
+
+          <Section style={buttonContainer}>
+            <Button style={button} href={verificationUrl}>
+              Verify Email
+            </Button>
+          </Section>
         </Section>
-        <Text style={text}>
-          If the button doesn't work, copy and paste this link into your browser:
-        </Text>
-        <Link href={verificationUrl} style={link}>
-          {verificationUrl}
-        </Link>
-        <Text style={footer}>
-          This verification link will expire in 24 hours. If you didn't create an account,
-          you can safely ignore this email.
-        </Text>
-        <Text style={footer}>
-          Best regards,
-          <br />
-          The Project Scope Analyzer Team
-        </Text>
+
+        <Hr style={divider} />
+
+        <Section style={glassCardSecondary}>
+          <Section style={linkSection}>
+            <Text style={linkText}>
+              If the button doesn't work, copy and paste this link into your browser:
+            </Text>
+            <Link href={verificationUrl} style={link}>
+              {verificationUrl}
+            </Link>
+          </Section>
+        </Section>
+
+        <Section style={footerSection}>
+          <Text style={footer}>
+            This verification link will expire in 24 hours.
+          </Text>
+          <Text style={footer}>
+            If you didn't create an account, you can safely ignore this email.
+          </Text>
+          <Text style={signature}>
+            Best regards,
+            <br />
+            Project Scope Analyzer Team
+          </Text>
+        </Section>
       </Container>
     </Body>
   </Html>
@@ -62,63 +83,145 @@ export const VerificationEmail = ({
 export default VerificationEmail;
 
 const main = {
-  backgroundColor: '#f6f9fc',
+  background: 'linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%)',
   fontFamily:
     '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif',
+  margin: '0',
+  padding: '40px 20px',
 };
 
 const container = {
-  backgroundColor: '#ffffff',
   margin: '0 auto',
-  padding: '40px 20px 48px',
-  marginBottom: '64px',
-  borderRadius: '8px',
+  padding: '0',
+  maxWidth: '600px',
 };
 
-const h1 = {
-  color: '#00e5ff',
-  fontSize: '32px',
-  fontWeight: 'bold',
-  margin: '40px 0',
-  padding: '0',
+const glassCard = {
+  backgroundColor: 'rgba(255, 255, 255, 0.7)',
+  backdropFilter: 'blur(10px)',
+  WebkitBackdropFilter: 'blur(10px)',
+  border: '1px solid rgba(255, 255, 255, 0.3)',
+  borderRadius: '16px',
+  padding: '60px 40px',
+  marginBottom: '30px',
+  boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.1)',
+};
+
+const glassCardSecondary = {
+  backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
+  border: '1px solid rgba(255, 255, 255, 0.2)',
+  borderRadius: '12px',
+  padding: '30px 40px',
+  marginBottom: '30px',
+  boxShadow: '0 4px 16px 0 rgba(0, 0, 0, 0.08)',
+};
+
+const headerSection = {
+  marginBottom: '60px',
   textAlign: 'center' as const,
 };
 
+const h1 = {
+  color: '#000000',
+  fontSize: '48px',
+  fontWeight: '300',
+  letterSpacing: '-0.5px',
+  margin: '0',
+  padding: '0',
+  textAlign: 'center' as const,
+  lineHeight: '1.2',
+};
+
+const contentSection = {
+  marginBottom: '50px',
+};
+
+const greeting = {
+  color: '#000000',
+  fontSize: '18px',
+  lineHeight: '28px',
+  marginBottom: '24px',
+  fontWeight: '400',
+};
+
 const text = {
-  color: '#333',
+  color: '#000000',
   fontSize: '16px',
   lineHeight: '26px',
-  marginBottom: '16px',
+  marginBottom: '20px',
+  fontWeight: '300',
 };
 
 const buttonContainer = {
   textAlign: 'center' as const,
-  margin: '32px 0',
+  margin: '50px 0',
 };
 
 const button = {
-  backgroundColor: '#00e5ff',
-  borderRadius: '12px',
-  color: '#fff',
-  fontSize: '16px',
-  fontWeight: 'bold',
+  backgroundColor: 'rgba(124, 58, 237, 0.9)',
+  backdropFilter: 'blur(10px)',
+  WebkitBackdropFilter: 'blur(10px)',
+  border: '1px solid rgba(124, 58, 237, 0.3)',
+  borderRadius: '8px',
+  color: '#ffffff',
+  fontSize: '14px',
+  fontWeight: '500',
   textDecoration: 'none',
   textAlign: 'center' as const,
   display: 'inline-block',
-  padding: '14px 40px',
+  padding: '16px 48px',
+  letterSpacing: '0.5px',
+  textTransform: 'uppercase' as const,
+  boxShadow: '0 4px 16px 0 rgba(124, 58, 237, 0.3)',
+};
+
+const divider = {
+  borderColor: 'rgba(0, 0, 0, 0.1)',
+  borderWidth: '1px',
+  borderStyle: 'solid',
+  margin: '50px 0',
+  opacity: '0.3',
+};
+
+const linkSection = {
+  marginBottom: '50px',
+};
+
+const linkText = {
+  color: '#6b7280',
+  fontSize: '13px',
+  lineHeight: '20px',
+  marginBottom: '12px',
+  fontWeight: '300',
 };
 
 const link = {
-  color: '#00e5ff',
-  fontSize: '14px',
-  textDecoration: 'underline',
+  color: '#7c3aed',
+  fontSize: '13px',
+  textDecoration: 'none',
   wordBreak: 'break-all' as const,
+  fontWeight: '400',
+};
+
+const footerSection = {
+  marginTop: '60px',
 };
 
 const footer = {
-  color: '#8898aa',
+  color: '#6b7280',
+  fontSize: '13px',
+  lineHeight: '20px',
+  marginBottom: '12px',
+  fontWeight: '300',
+};
+
+const signature = {
+  color: '#000000',
   fontSize: '14px',
   lineHeight: '22px',
-  marginTop: '32px',
+  marginTop: '40px',
+  fontWeight: '400',
 };
 

@@ -29,6 +29,7 @@ interface TaskData {
   progress: number;
   dependsOn: string | null;
   projectId: number | null;
+  workedHours?: number;
 }
 
 interface Project {
@@ -50,11 +51,14 @@ const statusMap: Record<string, { id: string; name: string; color: string }> = {
 };
 
 type ViewRange = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+type GanttType = 'tasks' | 'projects';
 
 export function GanttChartView({ projectId, readOnly = false }: GanttChartViewProps) {
   const [tasks, setTasks] = useState<TaskData[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [typeChanging, setTypeChanging] = useState(false); // For gantt type change loading
+  const [viewChanging, setViewChanging] = useState(false); // For view range change loading
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [parentTaskId, setParentTaskId] = useState<number | undefined>(undefined);
@@ -62,10 +66,47 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
   // View controls
   const [zoom] = useState(100);
   const [viewRange, setViewRange] = useState<ViewRange>('monthly');
+  const [ganttType, setGanttType] = useState<GanttType>('tasks');
 
   useEffect(() => {
     fetchData();
   }, [projectId]);
+
+  // Function to change view range with loading
+  const handleViewRangeChange = (newRange: ViewRange) => {
+    if (newRange === viewRange) return; // Skip if same
+
+    // Show loading immediately
+    setViewChanging(true);
+
+    // Change view range after delay to ensure loading shows first and DOM updates
+    setTimeout(() => {
+      setViewRange(newRange);
+
+      // Hide loading after render completes (daily view now optimized to load only ±1 month)
+      setTimeout(() => {
+        setViewChanging(false);
+      }, 300);
+    }, 16);
+  };
+
+  // Handle gantt type change with loading
+  const handleGanttTypeChange = (newType: GanttType) => {
+    if (newType === ganttType) return; // Skip if same
+
+    // Show loading immediately
+    setTypeChanging(true);
+
+    // Change type after a delay to ensure loading shows first
+    setTimeout(() => {
+      setGanttType(newType);
+
+      // Hide loading after render completes
+      setTimeout(() => {
+        setTypeChanging(false);
+      }, 300);
+    }, 16);
+  };
 
   const fetchData = async () => {
     try {
@@ -107,6 +148,7 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
           lane: task.projectId?.toString() || 'default',
           parentId,
           assignee: (task as any).assignee || undefined,
+          workedHours: task.workedHours,
           metadata: {
             task,
             progress: task.progress,
@@ -115,10 +157,17 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
       });
   }, [tasks]);
 
+  // Memoize filtered features to prevent unnecessary recalculations
+  const displayFeatures = useMemo(() => {
+    return ganttType === 'projects'
+      ? features.filter(f => !f.parentId) // Show only parent tasks (top-level)
+      : features; // Show all tasks
+  }, [features, ganttType]);
+
   // Group features by project (lane)
   const groupedFeatures = useMemo(() => {
     const byProject: Record<string, GanttFeature[]> = {};
-    features.forEach(feature => {
+    displayFeatures.forEach(feature => {
       const lane = feature.lane || 'default';
       if (!byProject[lane]) {
         byProject[lane] = [];
@@ -128,13 +177,17 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
 
     return Object.entries(byProject).map(([projectId, projectFeatures]) => {
       const project = projects.find(p => p.id.toString() === projectId);
+      const defaultName = ganttType === 'projects'
+        ? (projectId === 'default' ? 'Uncategorized Projects' : 'Projects')
+        : (projectId === 'default' ? 'Uncategorized Tasks' : 'Tasks');
+
       return {
         projectId,
         features: projectFeatures,
-        groupName: project?.name || (projectId === 'default' ? 'Task' : `Project ${projectId}`),
+        groupName: project?.name || defaultName,
       };
     });
-  }, [features, projects]);
+  }, [displayFeatures, projects, ganttType]);
 
   const handleMoveTask = async (id: string, startAt: Date, endAt: Date | null, shiftSubtasks = false) => {
     if (!endAt || readOnly) return;
@@ -271,10 +324,35 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
   return (
     <div className="w-full h-full flex flex-col min-h-0 max-h-full min-w-0 max-w-full overflow-hidden">
       {/* View Controls */}
-      <div className="mb-4 flex items-center justify-end gap-2 flex-shrink-0">
+      <div className="mb-4 flex items-center justify-between gap-2 flex-shrink-0">
+        {/* Gantt Type Selector - Left */}
         <div className="flex items-center gap-1 glass-medium rounded-xl p-1 border border-white/10">
           <button
-            onClick={() => setViewRange('daily')}
+            onClick={() => handleGanttTypeChange('tasks')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+              ganttType === 'tasks'
+                ? 'bg-primary/30 text-white border border-primary/50'
+                : 'text-white/60 hover:text-white/80 hover:bg-white/5'
+            }`}
+          >
+            Tasks
+          </button>
+          <button
+            onClick={() => handleGanttTypeChange('projects')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+              ganttType === 'projects'
+                ? 'bg-primary/30 text-white border border-primary/50'
+                : 'text-white/60 hover:text-white/80 hover:bg-white/5'
+            }`}
+          >
+            Projects
+          </button>
+        </div>
+
+        {/* View Range Selector - Right */}
+        <div className="flex items-center gap-1 glass-medium rounded-xl p-1 border border-white/10">
+          <button
+            onClick={() => handleViewRangeChange('daily')}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
               viewRange === 'daily'
                 ? 'bg-primary/30 text-white border border-primary/50'
@@ -284,7 +362,7 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
             Daily
           </button>
           <button
-            onClick={() => setViewRange('weekly')}
+            onClick={() => handleViewRangeChange('weekly')}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
               viewRange === 'weekly'
                 ? 'bg-primary/30 text-white border border-primary/50'
@@ -294,7 +372,7 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
             Weekly
           </button>
           <button
-            onClick={() => setViewRange('monthly')}
+            onClick={() => handleViewRangeChange('monthly')}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
               viewRange === 'monthly'
                 ? 'bg-primary/30 text-white border border-primary/50'
@@ -304,7 +382,7 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
             Monthly
           </button>
           <button
-            onClick={() => setViewRange('quarterly')}
+            onClick={() => handleViewRangeChange('quarterly')}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
               viewRange === 'quarterly'
                 ? 'bg-primary/30 text-white border border-primary/50'
@@ -314,7 +392,7 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
             Quarterly
           </button>
           <button
-            onClick={() => setViewRange('yearly')}
+            onClick={() => handleViewRangeChange('yearly')}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
               viewRange === 'yearly'
                 ? 'bg-primary/30 text-white border border-primary/50'
@@ -327,15 +405,39 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
       </div>
 
       {/* Gantt Chart */}
-      <div className="glass-medium rounded-2xl border border-white/10 w-full flex-1 flex flex-col min-h-0 max-h-full overflow-hidden min-w-0 max-w-full">
-        <div className="h-full min-h-0 min-w-0 max-w-full flex flex-col overflow-hidden">
+      <div className="glass-medium rounded-2xl border border-white/10 w-full flex-1 flex flex-col min-h-0 max-h-full overflow-hidden min-w-0 max-w-full relative">
+        {/* Type/View Change Loading Overlay */}
+        {(typeChanging || viewChanging) && (
+          <div className="absolute inset-0 z-50 backdrop-blur-xl bg-black/30 flex items-center justify-center rounded-2xl">
+            <div className="glass-medium px-8 py-6 rounded-2xl flex items-center gap-4 border border-white/10 shadow-2xl">
+              <div className="relative w-10 h-10">
+                <div className="absolute inset-0 rounded-full border-2 border-primary/20"></div>
+                <div className="absolute inset-0 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
+              </div>
+              <div>
+                <div className="text-base font-semibold text-white">
+                  {typeChanging
+                    ? (ganttType === 'projects' ? 'Loading Projects View...' : 'Loading Tasks View...')
+                    : `Loading ${viewRange.charAt(0).toUpperCase() + viewRange.slice(1)} View...`
+                  }
+                </div>
+                <div className="text-xs text-white/50 mt-1">Reorganizing timeline</div>
+              </div>
+            </div>
+          </div>
+        )}
+        <div
+          className={`h-full min-h-0 min-w-0 max-w-full flex flex-col overflow-hidden transition-opacity duration-300 ${
+            (typeChanging || viewChanging) ? 'opacity-0' : 'opacity-100'
+          }`}
+        >
           <GanttProvider
-            features={features}
+            features={displayFeatures}
             range={viewRange}
             zoom={zoom}
             onAddItem={handleAddTask}
           >
-            <GanttSidebar>
+            <GanttSidebar ganttType={ganttType}>
               {groupedFeatures.map(({ groupName, features: groupFeatures }) => (
                 <GanttSidebarGroup key={groupName} name={groupName}>
                   {groupFeatures.map((feature) => (

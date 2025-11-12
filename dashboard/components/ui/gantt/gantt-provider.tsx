@@ -94,23 +94,53 @@ export function GanttProvider({
   
   // Current date for initial range calculation
   const currentDate = useMemo(() => new Date(), []);
-  
-  // Initial range: current date ± 2 years
-  const initialRangeStart = useMemo(() => {
-    return startOfYear(addYears(currentDate, -2));
+
+  // Calculate initial range based on view mode to avoid generating unnecessary dates
+  const getInitialRange = useCallback((viewRange: typeof range) => {
+    switch (viewRange) {
+      case 'daily':
+        return {
+          start: addDays(currentDate, -30), // ±1 month
+          end: addDays(currentDate, 30)
+        };
+      case 'weekly':
+        return {
+          start: startOfWeek(addWeeks(currentDate, -52), { weekStartsOn: 1 }), // ±1 year
+          end: endOfWeek(addWeeks(currentDate, 52), { weekStartsOn: 1 })
+        };
+      case 'monthly':
+        return {
+          start: startOfMonth(addMonths(currentDate, -24)), // ±2 years
+          end: endOfMonth(addMonths(currentDate, 24))
+        };
+      case 'quarterly':
+        return {
+          start: startOfQuarter(addQuarters(currentDate, -12)), // ±3 years
+          end: endOfQuarter(addQuarters(currentDate, 12))
+        };
+      case 'yearly':
+        return {
+          start: startOfYear(addYears(currentDate, -5)), // ±5 years
+          end: endOfYear(addYears(currentDate, 5))
+        };
+      default:
+        // Fallback: ±2 years
+        return {
+          start: startOfYear(addYears(currentDate, -2)),
+          end: endOfYear(addYears(currentDate, 2))
+        };
+    }
   }, [currentDate]);
-  
-  const initialRangeEnd = useMemo(() => {
-    return endOfYear(addYears(currentDate, 2));
-  }, [currentDate]);
-  
-  // State for current date range (starts with ±2 years, expands on scroll)
+
+  // State for current date range (initialized based on view mode)
   const [dateRangeStart, setDateRangeStart] = useState(() => {
-    return initialRangeStart < baseStartDate ? baseStartDate : initialRangeStart;
+    const { start } = getInitialRange(range);
+    return start < baseStartDate ? baseStartDate : start;
   });
-  
+
   const [dateRangeEnd, setDateRangeEnd] = useState(() => {
-    return initialRangeEnd > baseEndDate ? baseEndDate : initialRangeEnd;
+    const { end } = getInitialRange(range);
+    return end > baseEndDate ? baseEndDate : end;
   });
   
   // Cache for calculated dates - key: `${viewMode}-${startTime}-${endTime}`
@@ -173,42 +203,14 @@ export function GanttProvider({
   
   // Reset range when view mode changes - ensure current date is included
   useEffect(() => {
-    // Calculate proper range for current view mode to include current date
-    let newStart: Date;
-    let newEnd: Date;
-    
-    switch (range) {
-      case 'daily':
-        newStart = addDays(currentDate, -30); // ±1 month
-        newEnd = addDays(currentDate, 30);
-        break;
-      case 'weekly':
-        newStart = startOfWeek(addWeeks(currentDate, -52), { weekStartsOn: 1 }); // ±1 year
-        newEnd = endOfWeek(addWeeks(currentDate, 52), { weekStartsOn: 1 });
-        break;
-      case 'monthly':
-        newStart = startOfMonth(addMonths(currentDate, -24)); // ±2 years
-        newEnd = endOfMonth(addMonths(currentDate, 24));
-        break;
-      case 'quarterly':
-        newStart = startOfQuarter(addQuarters(currentDate, -12)); // ±3 years
-        newEnd = endOfQuarter(addQuarters(currentDate, 12));
-        break;
-      case 'yearly':
-        newStart = startOfYear(addYears(currentDate, -5)); // ±5 years
-        newEnd = endOfYear(addYears(currentDate, 5));
-        break;
-      default:
-        newStart = initialRangeStart;
-        newEnd = initialRangeEnd;
-    }
-    
+    const { start: newStart, end: newEnd } = getInitialRange(range);
+
     const clampedStart = newStart < baseStartDate ? baseStartDate : newStart;
     const clampedEnd = newEnd > baseEndDate ? baseEndDate : newEnd;
-    
+
     setDateRangeStart(clampedStart);
     setDateRangeEnd(clampedEnd);
-  }, [range, currentDate, baseStartDate, baseEndDate, initialRangeStart, initialRangeEnd]);
+  }, [range, getInitialRange, baseStartDate, baseEndDate]);
   
   // Determine view mode based on range
   const viewMode = useMemo(() => {

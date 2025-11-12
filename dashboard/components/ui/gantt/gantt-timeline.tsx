@@ -226,10 +226,10 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
 
     // Only scroll if view mode changed or initial load
     if (shouldScroll) {
-      // Scroll to current date on initial load or view mode change
+      // Scroll to current date on initial load or view mode change (reduced delay since dates load faster now)
       const timeoutId = setTimeout(() => {
         scrollToCurrentDate(true);
-      }, 600); // Delay to ensure dates are loaded and rendered
+      }, 100); // Reduced delay since daily view is now optimized
 
       return () => {
         clearTimeout(timeoutId);
@@ -248,11 +248,12 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
           const scrollLeft = contentEl.scrollLeft;
           const scrollWidth = contentEl.scrollWidth;
           const clientWidth = contentEl.clientWidth;
-          const threshold = 10;
-          
-          setShowLeftButton(scrollLeft < threshold);
+          const leftThreshold = 10;
+          const rightThreshold = 50; // Show right button when within 50px of right edge
+
+          setShowLeftButton(scrollLeft < leftThreshold);
           const distanceFromRight = scrollWidth - scrollLeft - clientWidth;
-          setShowRightButton(distanceFromRight <= threshold);
+          setShowRightButton(distanceFromRight <= rightThreshold);
         }
       }, 300);
     };
@@ -376,14 +377,15 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
       const scrollLeft = contentEl.scrollLeft;
       const scrollWidth = contentEl.scrollWidth;
       const clientWidth = contentEl.clientWidth;
-      const threshold = 10; // Show button when within 10px of edge (smaller threshold for better UX)
-      
+      const leftThreshold = 10; // Show left button when within 10px of left edge
+      const rightThreshold = 50; // Show right button when within 50px of right edge (to work in all view modes)
+
       // Left button: show when near left edge
-      setShowLeftButton(scrollLeft < threshold);
-      
-      // Right button: show when near right edge (always visible at end of scroll)
+      setShowLeftButton(scrollLeft < leftThreshold);
+
+      // Right button: show when near right edge or at end
       const distanceFromRight = scrollWidth - scrollLeft - clientWidth;
-      setShowRightButton(distanceFromRight <= threshold);
+      setShowRightButton(distanceFromRight <= rightThreshold);
     };
 
     const handleContentScroll = () => {
@@ -436,20 +438,11 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
       {children}
       {/* Loading indicator when extending range */}
       <RangeExtensionIndicator />
-      {/* Loading indicator when scrolling to current date */}
-      {isScrollingToDate && (
-        <div className="absolute top-2 left-1/2 transform -translate-x-1/2 z-50 pointer-events-none">
-          <div className="bg-black/80 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 backdrop-blur-sm border border-white/20">
-            <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-            <span>Scrolling to current date...</span>
-          </div>
-        </div>
-      )}
       {/* Extension buttons at edges - positioned relative to container */}
       {showLeftButton && (
         <button
           onClick={handleExtendLeft}
-          className="absolute left-2 top-1/2 transform -translate-y-1/2 z-40 bg-black/80 hover:bg-black/90 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all shadow-lg"
+          className="absolute left-2 top-1/2 transform -translate-y-1/2 z-40 glass-medium hover:bg-white/10 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 backdrop-blur-xl border border-white/20 transition-all shadow-lg"
           title="Load more dates to the left"
         >
           <span className="text-lg font-bold">+</span>
@@ -458,8 +451,9 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
       {showRightButton && (
         <button
           onClick={handleExtendRight}
-          className="absolute right-2 top-1/2 transform -translate-y-1/2 z-40 bg-black/80 hover:bg-black/90 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 backdrop-blur-sm border border-white/20 transition-all shadow-lg"
+          className="fixed right-4 top-1/2 transform -translate-y-1/2 z-40 glass-medium hover:bg-white/10 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2 backdrop-blur-xl border border-white/20 transition-all shadow-lg"
           title="Load more dates to the right"
+          style={{ marginTop: '32px' }}
         >
           <span className="text-lg font-bold">+</span>
         </button>
