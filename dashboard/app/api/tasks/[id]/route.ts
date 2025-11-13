@@ -16,10 +16,19 @@ export async function GET(
     }
 
     const id = parseInt(params.id);
+    if (isNaN(id) || id <= 0) {
+      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
+    }
+
     const task = await storage.getTask(id);
 
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    }
+
+    // Verify ownership
+    if (task.userId !== session.userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     return NextResponse.json({ task });
@@ -40,12 +49,31 @@ export async function PUT(
     }
 
     const id = parseInt(params.id);
+    if (isNaN(id) || id <= 0) {
+      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
+    }
+
     const data = await request.json();
 
     // Get original task to calculate date delta
     const originalTask = await storage.getTask(id);
     if (!originalTask) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    }
+
+    // Verify ownership
+    if (originalTask.userId !== session.userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // If changing projectId, verify ownership of new project
+    if (data.project_id !== undefined && data.project_id !== originalTask.projectId) {
+      if (data.project_id) {
+        const newProject = await storage.getProject(parseInt(data.project_id));
+        if (!newProject || newProject.userId !== session.userId) {
+          return NextResponse.json({ error: 'Forbidden - Cannot assign task to another user\'s project' }, { status: 403 });
+        }
+      }
     }
 
     const updateData: any = {};
@@ -108,6 +136,20 @@ export async function DELETE(
     }
 
     const id = parseInt(params.id);
+    if (isNaN(id) || id <= 0) {
+      return NextResponse.json({ error: 'Invalid task ID' }, { status: 400 });
+    }
+
+    // Verify ownership before deleting
+    const task = await storage.getTask(id);
+    if (!task) {
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    }
+
+    if (task.userId !== session.userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     await storage.deleteTask(id);
 
     // Invalidate user caches after deleting task

@@ -6,9 +6,19 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    // Simple authentication check - you might want to add proper auth
+    // Require authentication for migration endpoint
+    const migrationSecret = process.env.MIGRATION_SECRET;
+
+    if (!migrationSecret) {
+      console.error('MIGRATION_SECRET is not configured');
+      return NextResponse.json(
+        { error: 'Migration endpoint is not properly configured' },
+        { status: 503 }
+      );
+    }
+
     const authHeader = request.headers.get('authorization');
-    if (authHeader !== `Bearer ${process.env.MIGRATION_SECRET || 'migration-secret'}`) {
+    if (authHeader !== `Bearer ${migrationSecret}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

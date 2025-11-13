@@ -58,12 +58,14 @@
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-dropzone": "^14.3.8",
+    "react-hot-toast": "^2.6.0",
     "recharts": "^2.12.0",
     "resend": "^6.4.2",
     "stripe": "^19.3.0",
     "tailwind-merge": "^2.3.0",
     "utf-8-validate": "^6.0.5",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/node": "^20",

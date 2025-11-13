@@ -9,11 +9,19 @@ export const dynamic = 'force-dynamic';
 // Example: Call GET /api/cron/reminders daily
 export async function GET(request: NextRequest) {
   try {
-    // Optional: Add authentication for cron endpoint
-    const authHeader = request.headers.get('authorization');
+    // Require authentication for cron endpoint
     const cronSecret = process.env.CRON_SECRET;
-    
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+
+    if (!cronSecret) {
+      console.error('CRON_SECRET is not configured');
+      return NextResponse.json(
+        { error: 'Cron endpoint is not properly configured' },
+        { status: 503 }
+      );
+    }
+
+    const authHeader = request.headers.get('authorization');
+    if (authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

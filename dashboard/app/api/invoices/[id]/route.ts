@@ -16,10 +16,20 @@ export async function GET(
     }
 
     const id = parseInt(params.id);
+    if (isNaN(id) || id <= 0) {
+      return NextResponse.json({ error: 'Invalid invoice ID' }, { status: 400 });
+    }
+
     const invoice = await storage.getInvoice(id);
 
     if (!invoice) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    }
+
+    // Verify ownership through project
+    const project = await storage.getProject(invoice.projectId);
+    if (!project || project.userId !== session.userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     return NextResponse.json({ invoice });
@@ -40,12 +50,30 @@ export async function PUT(
     }
 
     const id = parseInt(params.id);
+    if (isNaN(id) || id <= 0) {
+      return NextResponse.json({ error: 'Invalid invoice ID' }, { status: 400 });
+    }
+
     const data = await request.json();
-    
+
     // Get old invoice to track status changes
     const oldInvoice = await storage.getInvoice(id);
     if (!oldInvoice) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    }
+
+    // Verify ownership through project
+    const project = await storage.getProject(oldInvoice.projectId);
+    if (!project || project.userId !== session.userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // If changing projectId, verify ownership of new project
+    if (data.project_id !== undefined && data.project_id !== oldInvoice.projectId) {
+      const newProject = await storage.getProject(parseInt(data.project_id));
+      if (!newProject || newProject.userId !== session.userId) {
+        return NextResponse.json({ error: 'Forbidden - Cannot assign invoice to another user\'s project' }, { status: 403 });
+      }
     }
     
     const updateData: any = {};
@@ -158,6 +186,21 @@ export async function DELETE(
     }
 
     const id = parseInt(params.id);
+    if (isNaN(id) || id <= 0) {
+      return NextResponse.json({ error: 'Invalid invoice ID' }, { status: 400 });
+    }
+
+    // Verify ownership through project before deleting
+    const invoice = await storage.getInvoice(id);
+    if (!invoice) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    }
+
+    const project = await storage.getProject(invoice.projectId);
+    if (!project || project.userId !== session.userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     await storage.deleteInvoice(id);
 
     return NextResponse.json({ success: true });

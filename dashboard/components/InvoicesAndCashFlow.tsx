@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, FileText, DollarSign, TrendingUp, TrendingDown, Edit, Trash2, Download, Mail, Link } from 'lucide-react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import { InvoiceForm } from './InvoiceForm';
 import { ExpenseForm } from './ExpenseForm';
 import { CashFlowAnalytics } from './CashFlowAnalytics';
@@ -97,10 +98,11 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
 
     try {
       await axios.delete(`/api/expenses/${expenseId}`);
+      toast.success('Expense deleted successfully');
       loadData();
     } catch (error) {
       console.error('Failed to delete expense:', error);
-      alert('Failed to delete expense. Please try again.');
+      toast.error('Failed to delete expense. Please try again.');
     }
   };
 
@@ -112,10 +114,10 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
   const handleSendEmail = async (invoice: Invoice, action: 'send' | 'remind') => {
     try {
       const response = await axios.post(`/api/invoices/${invoice.id}/send-email`, { action });
-      alert(response.data.message || 'Email sent successfully');
+      toast.success(response.data.message || 'Email sent successfully');
     } catch (error: any) {
       console.error('Failed to send email:', error);
-      alert(error.response?.data?.error || 'Failed to send email');
+      toast.error(error.response?.data?.error || 'Failed to send email');
     }
   };
 
@@ -124,10 +126,10 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
       const response = await axios.post(`/api/invoices/${invoice.id}/generate-token`);
       const publicUrl = response.data.publicUrl;
       navigator.clipboard.writeText(publicUrl);
-      alert(`Public link copied to clipboard: ${publicUrl}`);
+      toast.success('Public link copied to clipboard');
     } catch (error: any) {
       console.error('Failed to generate public link:', error);
-      alert(error.response?.data?.error || 'Failed to generate public link');
+      toast.error(error.response?.data?.error || 'Failed to generate public link');
     }
   };
 
@@ -140,12 +142,12 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
         setShowInvoiceForm(true);
       } else {
         console.error('Invalid response format:', response.data);
-        alert('Failed to load invoice data. Invalid response format.');
+        toast.error('Failed to load invoice data. Invalid response format.');
       }
     } catch (error: any) {
       console.error('Failed to load invoice:', error);
       const errorMessage = error?.response?.data?.error || error?.message || 'Failed to load invoice. Please try again.';
-      alert(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -154,7 +156,7 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
       // Fetch full invoice data including project name
       const response = await axios.get(`/api/invoices/${invoice.id}`);
       const fullInvoice = response.data.invoice;
-      
+
       // Fetch project name if projectId exists
       let projectName = '';
       if (fullInvoice.projectId) {
@@ -165,23 +167,24 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
           console.error('Failed to fetch project name:', e);
         }
       }
-      
+
       // Generate PDF with full invoice data
       const invoiceForPDF = {
         ...fullInvoice,
-        dueDate: fullInvoice.dueDate 
-          ? (fullInvoice.dueDate instanceof Date 
-              ? fullInvoice.dueDate.toISOString() 
-              : typeof fullInvoice.dueDate === 'string' 
-                ? fullInvoice.dueDate 
+        dueDate: fullInvoice.dueDate
+          ? (fullInvoice.dueDate instanceof Date
+              ? fullInvoice.dueDate.toISOString()
+              : typeof fullInvoice.dueDate === 'string'
+                ? fullInvoice.dueDate
                 : new Date(fullInvoice.dueDate).toISOString())
           : null,
         projectName,
       };
       await generateInvoicePDF(invoiceForPDF);
+      toast.success('Invoice downloaded successfully');
     } catch (error) {
       console.error('Failed to download invoice:', error);
-      alert('Failed to download invoice. Please try again.');
+      toast.error('Failed to download invoice. Please try again.');
     }
   };
 
@@ -219,9 +222,13 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
   return (
     <div className="space-y-6">
       {/* Tabs */}
-      <div className="flex items-center space-x-2 border-b border-white/10">
+      <div className="flex items-center space-x-2 border-b border-white/10" role="tablist">
         <button
           onClick={() => setActiveTab('cashflow')}
+          role="tab"
+          aria-selected={activeTab === 'cashflow'}
+          aria-controls="cashflow-panel"
+          aria-label="View cash flow overview"
           className={`px-4 py-2 font-semibold transition-all duration-200 border-b-2 ${
             activeTab === 'cashflow'
               ? 'text-primary border-primary'
@@ -232,6 +239,10 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
         </button>
         <button
           onClick={() => setActiveTab('invoices')}
+          role="tab"
+          aria-selected={activeTab === 'invoices'}
+          aria-controls="invoices-panel"
+          aria-label="View invoices list"
           className={`px-4 py-2 font-semibold transition-all duration-200 border-b-2 ${
             activeTab === 'invoices'
               ? 'text-primary border-primary'
@@ -242,6 +253,10 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
         </button>
         <button
           onClick={() => setActiveTab('expenses')}
+          role="tab"
+          aria-selected={activeTab === 'expenses'}
+          aria-controls="expenses-panel"
+          aria-label="View expenses list"
           className={`px-4 py-2 font-semibold transition-all duration-200 border-b-2 ${
             activeTab === 'expenses'
               ? 'text-primary border-primary'
@@ -252,6 +267,10 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
         </button>
         <button
           onClick={() => setActiveTab('recurring')}
+          role="tab"
+          aria-selected={activeTab === 'recurring'}
+          aria-controls="recurring-panel"
+          aria-label="View recurring invoices"
           className={`px-4 py-2 font-semibold transition-all duration-200 border-b-2 ${
             activeTab === 'recurring'
               ? 'text-primary border-primary'
@@ -264,7 +283,7 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
 
       {/* Cash Flow Overview */}
       {activeTab === 'cashflow' && (
-        <div className="space-y-6">
+        <div id="cashflow-panel" role="tabpanel" aria-labelledby="cashflow-tab" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="glass-medium rounded-xl p-6 border border-white/10">
               <div className="flex items-center justify-between mb-4">
@@ -309,14 +328,15 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
 
       {/* Invoices Tab */}
       {activeTab === 'invoices' && (
-        <div className="space-y-4">
+        <div id="invoices-panel" role="tabpanel" aria-labelledby="invoices-tab" className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold text-text-primary">Invoices</h3>
             <button
               onClick={() => setShowInvoiceForm(true)}
+              aria-label="Create new invoice"
               className="flex items-center space-x-2 px-4 py-2 bg-primary text-white rounded-lg hover:opacity-90 transition-colors"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4" aria-hidden="true" />
               <span>New Invoice</span>
             </button>
           </div>
@@ -353,38 +373,42 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-2">
                           {invoice.clientEmail && (
-                            <button 
+                            <button
                               onClick={() => handleSendEmail(invoice, 'send')}
                               className="p-1 hover:bg-white/10 rounded transition-colors"
+                              aria-label={`Send email to ${invoice.clientName || 'client'} for invoice ${invoice.invoiceNumber}`}
                               title="Send email to client"
                             >
-                              <Mail className="w-4 h-4 text-blue-400" />
+                              <Mail className="w-4 h-4 text-blue-400" aria-hidden="true" />
                             </button>
                           )}
-                          <button 
+                          <button
                             onClick={() => handleGeneratePublicLink(invoice)}
                             className="p-1 hover:bg-white/10 rounded transition-colors"
+                            aria-label={`Generate public link for invoice ${invoice.invoiceNumber}`}
                             title="Generate public link"
                           >
-                            <Link className="w-4 h-4 text-text-secondary" />
+                            <Link className="w-4 h-4 text-text-secondary" aria-hidden="true" />
                           </button>
-                          <button 
+                          <button
                             onClick={() => handleDownloadInvoice(invoice)}
                             className="p-1 hover:bg-white/10 rounded transition-colors"
+                            aria-label={`Download PDF for invoice ${invoice.invoiceNumber}`}
                             title="Download PDF"
                           >
-                            <Download className="w-4 h-4 text-text-secondary" />
+                            <Download className="w-4 h-4 text-text-secondary" aria-hidden="true" />
                           </button>
-                          <button 
+                          <button
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
                               handleEditInvoice(invoice);
                             }}
                             className="p-1 hover:bg-white/10 rounded transition-colors"
+                            aria-label={`Edit invoice ${invoice.invoiceNumber}`}
                             title="Edit invoice"
                           >
-                            <Edit className="w-4 h-4 text-text-secondary" />
+                            <Edit className="w-4 h-4 text-text-secondary" aria-hidden="true" />
                           </button>
                         </div>
                       </td>
@@ -406,7 +430,7 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
 
       {/* Expenses Tab */}
       {activeTab === 'expenses' && (
-        <div className="space-y-4">
+        <div id="expenses-panel" role="tabpanel" aria-labelledby="expenses-tab" className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold text-text-primary">Expenses</h3>
             <button
@@ -414,9 +438,10 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
                 setEditingExpense(null);
                 setShowExpenseForm(true);
               }}
+              aria-label="Create new expense"
               className="flex items-center space-x-2 px-4 py-2 bg-primary text-white rounded-lg hover:opacity-90 transition-colors"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4" aria-hidden="true" />
               <span>New Expense</span>
             </button>
           </div>
@@ -439,19 +464,21 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
                     <p className="text-xs text-text-tertiary mt-1">{formatDate(expense.expenseDate)}</p>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <button 
+                    <button
                       onClick={() => handleEditExpense(expense)}
                       className="p-2 hover:bg-white/10 rounded transition-colors"
+                      aria-label={`Edit expense: ${expense.description}`}
                       title="Edit expense"
                     >
-                      <Edit className="w-4 h-4 text-text-secondary" />
+                      <Edit className="w-4 h-4 text-text-secondary" aria-hidden="true" />
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleDeleteExpense(expense.id)}
                       className="p-2 hover:bg-white/10 rounded transition-colors"
+                      aria-label={`Delete expense: ${expense.description}`}
                       title="Delete expense"
                     >
-                      <Trash2 className="w-4 h-4 text-text-secondary" />
+                      <Trash2 className="w-4 h-4 text-text-secondary" aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -469,14 +496,15 @@ export function InvoicesAndCashFlow({ projectId }: InvoicesAndCashFlowProps) {
 
       {/* Recurring Invoices Tab */}
       {activeTab === 'recurring' && (
-        <div className="space-y-4">
+        <div id="recurring-panel" role="tabpanel" aria-labelledby="recurring-tab" className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold text-text-primary">Recurring Invoices</h3>
             <button
               onClick={() => setShowRecurringForm(true)}
+              aria-label="Create new recurring invoice"
               className="flex items-center space-x-2 px-4 py-2 bg-primary text-white rounded-lg hover:opacity-90 transition-colors"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4" aria-hidden="true" />
               <span>New Recurring Invoice</span>
             </button>
           </div>

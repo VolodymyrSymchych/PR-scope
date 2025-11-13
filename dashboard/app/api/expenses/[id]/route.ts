@@ -15,10 +15,19 @@ export async function GET(
     }
 
     const id = parseInt(params.id);
+    if (isNaN(id) || id <= 0) {
+      return NextResponse.json({ error: 'Invalid expense ID' }, { status: 400 });
+    }
+
     const expense = await storage.getExpense(id);
 
     if (!expense) {
       return NextResponse.json({ error: 'Expense not found' }, { status: 404 });
+    }
+
+    // Verify ownership
+    if (expense.userId !== session.userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     return NextResponse.json({ expense });
@@ -39,8 +48,22 @@ export async function PUT(
     }
 
     const id = parseInt(params.id);
+    if (isNaN(id) || id <= 0) {
+      return NextResponse.json({ error: 'Invalid expense ID' }, { status: 400 });
+    }
+
+    // Verify ownership before updating
+    const existingExpense = await storage.getExpense(id);
+    if (!existingExpense) {
+      return NextResponse.json({ error: 'Expense not found' }, { status: 404 });
+    }
+
+    if (existingExpense.userId !== session.userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const data = await request.json();
-    
+
     const updateData: any = {};
     if (data.category) updateData.category = data.category;
     if (data.description !== undefined) updateData.description = data.description;
@@ -74,6 +97,20 @@ export async function DELETE(
     }
 
     const id = parseInt(params.id);
+    if (isNaN(id) || id <= 0) {
+      return NextResponse.json({ error: 'Invalid expense ID' }, { status: 400 });
+    }
+
+    // Verify ownership before deleting
+    const expense = await storage.getExpense(id);
+    if (!expense) {
+      return NextResponse.json({ error: 'Expense not found' }, { status: 404 });
+    }
+
+    if (expense.userId !== session.userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     await storage.deleteExpense(id);
 
     return NextResponse.json({ success: true });

@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import { storage } from '../../../../server/storage';
 import { cached, invalidateUserCache } from '@/lib/redis';
 import { withRateLimit } from '@/lib/rate-limit';
+import { createTaskSchema, validateRequestBody, formatZodError } from '@/lib/validations';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,26 +63,18 @@ export async function POST(request: NextRequest) {
     const data = await request.json();
     console.log('Creating task with data:', { ...data, userId: session.userId });
 
-    const { title, description, project_id, assignee, due_date, start_date, end_date, status, priority, depends_on, progress } = data;
-
-    if (!title || title.trim() === '') {
-      return NextResponse.json({ error: 'Task title is required' }, { status: 400 });
+    // Validate request body
+    const validation = validateRequestBody(createTaskSchema, data);
+    if (validation.success === false) {
+      return NextResponse.json(formatZodError(validation.error), { status: 400 });
     }
 
-    // Validate project_id if provided
-    let projectId: number | null = null;
-    if (project_id !== undefined && project_id !== null && project_id !== '') {
-      const parsedProjectId = parseInt(project_id);
-      if (isNaN(parsedProjectId)) {
-        return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
-      }
-      projectId = parsedProjectId;
-    }
+    const { title, description, project_id, assignee, due_date, start_date, end_date, status, priority, depends_on, progress } = validation.data;
 
     const taskData = {
       title: title.trim(),
       description: description ? description.trim() : null,
-      projectId,
+      projectId: project_id || null,
       userId: session.userId,
       assignee: assignee ? assignee.trim() : null,
       startDate: start_date ? new Date(start_date) : null,

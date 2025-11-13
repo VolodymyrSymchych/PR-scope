@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, startTransition } from 'react';
 import axios from 'axios';
 import { Plus, BarChart3 } from 'lucide-react';
 import {
@@ -76,36 +76,28 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
   const handleViewRangeChange = (newRange: ViewRange) => {
     if (newRange === viewRange) return; // Skip if same
 
-    // Show loading immediately
+    // Show loading state and update view range
     setViewChanging(true);
+    setViewRange(newRange);
 
-    // Change view range after delay to ensure loading shows first and DOM updates
-    setTimeout(() => {
-      setViewRange(newRange);
-
-      // Hide loading after render completes (daily view now optimized to load only ±1 month)
-      setTimeout(() => {
-        setViewChanging(false);
-      }, 300);
-    }, 16);
+    // Use startTransition for non-urgent state updates
+    startTransition(() => {
+      setViewChanging(false);
+    });
   };
 
   // Handle gantt type change with loading
   const handleGanttTypeChange = (newType: GanttType) => {
     if (newType === ganttType) return; // Skip if same
 
-    // Show loading immediately
+    // Show loading state and update gantt type
     setTypeChanging(true);
+    setGanttType(newType);
 
-    // Change type after a delay to ensure loading shows first
-    setTimeout(() => {
-      setGanttType(newType);
-
-      // Hide loading after render completes
-      setTimeout(() => {
-        setTypeChanging(false);
-      }, 300);
-    }, 16);
+    // Use startTransition for non-urgent state updates
+    startTransition(() => {
+      setTypeChanging(false);
+    });
   };
 
   const fetchData = async () => {
@@ -324,11 +316,13 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
   return (
     <div className="w-full h-full flex flex-col min-h-0 max-h-full min-w-0 max-w-full overflow-hidden">
       {/* View Controls */}
-      <div className="mb-4 flex items-center justify-between gap-2 flex-shrink-0">
+      <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 flex-shrink-0">
         {/* Gantt Type Selector - Left */}
-        <div className="flex items-center gap-1 glass-medium rounded-xl p-1 border border-white/10">
+        <div className="flex items-center gap-1 glass-medium rounded-xl p-1 border border-white/10 overflow-x-auto">
           <button
             onClick={() => handleGanttTypeChange('tasks')}
+            aria-label="View all tasks"
+            aria-pressed={ganttType === 'tasks'}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
               ganttType === 'tasks'
                 ? 'bg-primary/30 text-white border border-primary/50'
@@ -339,6 +333,8 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
           </button>
           <button
             onClick={() => handleGanttTypeChange('projects')}
+            aria-label="View projects only"
+            aria-pressed={ganttType === 'projects'}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
               ganttType === 'projects'
                 ? 'bg-primary/30 text-white border border-primary/50'
@@ -350,9 +346,11 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
         </div>
 
         {/* View Range Selector - Right */}
-        <div className="flex items-center gap-1 glass-medium rounded-xl p-1 border border-white/10">
+        <div className="flex items-center gap-1 glass-medium rounded-xl p-1 border border-white/10 overflow-x-auto">
           <button
             onClick={() => handleViewRangeChange('daily')}
+            aria-label="View daily timeline"
+            aria-pressed={viewRange === 'daily'}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
               viewRange === 'daily'
                 ? 'bg-primary/30 text-white border border-primary/50'
@@ -363,6 +361,8 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
           </button>
           <button
             onClick={() => handleViewRangeChange('weekly')}
+            aria-label="View weekly timeline"
+            aria-pressed={viewRange === 'weekly'}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
               viewRange === 'weekly'
                 ? 'bg-primary/30 text-white border border-primary/50'
@@ -373,6 +373,8 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
           </button>
           <button
             onClick={() => handleViewRangeChange('monthly')}
+            aria-label="View monthly timeline"
+            aria-pressed={viewRange === 'monthly'}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
               viewRange === 'monthly'
                 ? 'bg-primary/30 text-white border border-primary/50'
@@ -383,6 +385,8 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
           </button>
           <button
             onClick={() => handleViewRangeChange('quarterly')}
+            aria-label="View quarterly timeline"
+            aria-pressed={viewRange === 'quarterly'}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
               viewRange === 'quarterly'
                 ? 'bg-primary/30 text-white border border-primary/50'
@@ -393,6 +397,8 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
           </button>
           <button
             onClick={() => handleViewRangeChange('yearly')}
+            aria-label="View yearly timeline"
+            aria-pressed={viewRange === 'yearly'}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
               viewRange === 'yearly'
                 ? 'bg-primary/30 text-white border border-primary/50'

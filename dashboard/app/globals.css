@@ -33,7 +33,7 @@
 
     --text-primary: 220 15% 95%;
     --text-secondary: 220 12% 70%;
-    --text-tertiary: 220 10% 50%;
+    --text-tertiary: 220 10% 65%; /* Increased from 50% to 65% for WCAG AA compliance (4.5:1 contrast ratio) */
   }
 
   /* Glassmorphism theme */
@@ -51,7 +51,7 @@
 
     --text-primary: 0 0% 98%;
     --text-secondary: 0 0% 80%;
-    --text-tertiary: 0 0% 60%;
+    --text-tertiary: 0 0% 65%; /* Increased from 60% to 65% for better contrast */
   }
 
   body {
@@ -120,20 +120,18 @@
   /* Optimized glassmorphism - reduced blur for performance */
   .glass-heavy {
     background: rgba(255, 255, 255, 0.12);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(6px); /* Reduced from 8px for better performance */
+    -webkit-backdrop-filter: blur(6px);
     border: 1px solid rgba(255, 255, 255, 0.18);
     transform: translateZ(0);
-    will-change: transform;
   }
 
   .glass-medium {
     background: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(8px); /* Reduced from 12px for better performance */
+    -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.12);
     transform: translateZ(0);
-    will-change: transform;
   }
 
   .glass-light {
@@ -164,7 +162,6 @@
     transition-property: transform, background-color, border-color;
     transition-timing-function: var(--ease-smooth-out);
     transition-duration: 0.2s;
-    will-change: transform;
     transform: translateZ(0);
   }
 
@@ -174,6 +171,7 @@
     transform: translateY(-4px) scale(1.01) translateZ(0);
     transition-duration: 0.15s;
     transition-timing-function: var(--ease-spring);
+    will-change: transform; /* Only set on hover for better memory usage */
   }
 
   .glass-button {
@@ -184,7 +182,6 @@
     transition-property: transform, background-color;
     transition-timing-function: var(--ease-smooth-out);
     transition-duration: 0.2s;
-    will-change: transform;
     transform: translateZ(0);
   }
 
@@ -193,6 +190,7 @@
     transform: translateY(-3px) scale(1.02) translateZ(0);
     transition-duration: 0.15s;
     transition-timing-function: var(--ease-spring);
+    will-change: transform; /* Only set on hover for better memory usage */
   }
 
   .glass-button:active {
@@ -215,7 +213,8 @@
   .glass-input:focus {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(128, 152, 249, 0.6);
-    outline: none;
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
     transition-duration: 0.15s;
   }
 
@@ -319,13 +318,10 @@
     transform: translateZ(0);
   }
 
-  button, a, [role="button"] {
-    will-change: transform;
-  }
-
   button:hover, a:hover, [role="button"]:hover {
     transition-duration: 0.15s;
     transition-timing-function: var(--ease-spring);
+    will-change: transform; /* Only set on hover */
   }
 
   button:active, a:active, [role="button"]:active {
@@ -333,18 +329,44 @@
     transition-timing-function: var(--ease-smooth-in);
   }
 
+  /* Focus indicators for keyboard navigation only */
+  button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+  }
+
+  input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+  }
+
   /* Smooth card animations */
   .glass-light, .glass-medium, .glass-heavy, .glass-strong {
     transition-property: transform, background-color, border-color;
     transition-timing-function: var(--ease-smooth-out);
     transition-duration: 0.2s;
-    will-change: transform;
     contain: layout style paint;
   }
 
   .glass-light:hover, .glass-medium:hover, .glass-heavy:hover, .glass-strong:hover {
     transition-duration: 0.15s;
     transition-timing-function: var(--ease-spring);
+    will-change: transform; /* Only set on hover */
+  }
+
+  /* Disable blur and animations for users who prefer reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .glass-heavy, .glass-medium, .glass-light {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    button, a, [role="button"], * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
   
   .bg-grid {
@@ -360,6 +382,57 @@
       hsl(var(--surface-elevated)) 0%,
       hsl(var(--background)) 100%
     );
+  }
+}
+
+/* Toast notification styles - glassmorphism theme */
+.toast-notification {
+  background: rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(12px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 12px !important;
+  padding: 16px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37) !important;
+  color: hsl(var(--text-primary)) !important;
+  transform: translateZ(0);
+  animation: toast-slide-in 0.3s var(--ease-spring) !important;
+}
+
+.toast-notification-success {
+  background: linear-gradient(135deg, rgba(145, 235, 168, 0.15), rgba(145, 235, 168, 0.08)) !important;
+  border: 1px solid rgba(145, 235, 168, 0.3) !important;
+}
+
+.toast-notification-error {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.08)) !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+}
+
+.toast-notification-loading {
+  background: linear-gradient(135deg, rgba(128, 152, 249, 0.15), rgba(128, 152, 249, 0.08)) !important;
+  border: 1px solid rgba(128, 152, 249, 0.3) !important;
+}
+
+@keyframes toast-slide-in {
+  from {
+    transform: translateX(100%) translateZ(0);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0) translateZ(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-slide-out {
+  from {
+    transform: translateX(0) translateZ(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%) translateZ(0);
+    opacity: 0;
   }
 }
 

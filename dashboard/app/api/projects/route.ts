@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import { storage } from '../../../../server/storage';
 import { cached, invalidateUserCache } from '@/lib/redis';
 import { withRateLimit } from '@/lib/rate-limit';
+import { createProjectSchema, validateRequestBody, formatZodError } from '@/lib/validations';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,11 +53,14 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json();
-    const { name, type, industry, teamSize, timeline, budget, startDate, endDate, document, analysisData, score, riskLevel, status } = data;
 
-    if (!name) {
-      return NextResponse.json({ error: 'Project name is required' }, { status: 400 });
+    // Validate request body
+    const validation = validateRequestBody(createProjectSchema, data);
+    if (validation.success === false) {
+      return NextResponse.json(formatZodError(validation.error), { status: 400 });
     }
+
+    const { name, type, industry, teamSize, timeline, budget, startDate, endDate, document, analysisData, score, riskLevel, status } = validation.data;
 
     const project = await storage.createProject({
       userId: session.userId,

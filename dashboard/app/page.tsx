@@ -10,6 +10,7 @@ import { ProgressSection } from '@/components/ProgressSection';
 import { UpcomingTasks } from '@/components/UpcomingTasks';
 import { api, Project, Stats } from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import {
   DndContext,
   DragEndEvent,
@@ -120,9 +121,10 @@ export default function DashboardPage() {
         
         // Trigger refresh of calendar and tasks
         setRefreshKey(prev => prev + 1);
+        toast.success('Task date updated successfully');
       } catch (error: any) {
         console.error('Failed to update task due date:', error);
-        alert(`Failed to update task: ${error.response?.data?.error || error.message}`);
+        toast.error(`Failed to update task: ${error.response?.data?.error || error.message}`);
       }
     }
   };
@@ -135,7 +137,7 @@ export default function DashboardPage() {
     >
       <div className="space-y-6">
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatsCard
             title="Projects In Progress"
             value={stats.projects_in_progress}

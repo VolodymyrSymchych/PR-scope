@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { storage } from '../../../../server/storage';
+import { createExpenseSchema, validateRequestBody, formatZodError } from '@/lib/validations';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,13 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json();
+
+    // Validate request body
+    const validation = validateRequestBody(createExpenseSchema, data);
+    if (validation.success === false) {
+      return NextResponse.json(formatZodError(validation.error), { status: 400 });
+    }
+
     const {
       project_id,
       category,
@@ -42,17 +50,10 @@ export async function POST(request: NextRequest) {
       expense_date,
       receipt_url,
       notes,
-    } = data;
-
-    if (!project_id || !category || !description || !amount) {
-      return NextResponse.json(
-        { error: 'Project ID, category, description, and amount are required' },
-        { status: 400 }
-      );
-    }
+    } = validation.data;
 
     const expense = await storage.createExpense({
-      projectId: parseInt(project_id),
+      projectId: project_id,
       userId: session.userId,
       category,
       description,

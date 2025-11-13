@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { storage } from '../../../../server/storage';
 import { sendInvoiceEmail } from '@/lib/email/send-invoice';
+import { createInvoiceSchema, validateRequestBody, formatZodError } from '@/lib/validations';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,13 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json();
+
+    // Validate request body
+    const validation = validateRequestBody(createInvoiceSchema, data);
+    if (validation.success === false) {
+      return NextResponse.json(formatZodError(validation.error), { status: 400 });
+    }
+
     const {
       project_id,
       invoice_number,
@@ -49,22 +57,7 @@ export async function POST(request: NextRequest) {
       description,
       items,
       notes,
-    } = data;
-
-    if (!project_id || !invoice_number) {
-      return NextResponse.json(
-        { error: 'Project ID and invoice number are required' },
-        { status: 400 }
-      );
-    }
-
-    // Validate amount - must be greater than 0
-    if (!amount || amount <= 0) {
-      return NextResponse.json(
-        { error: 'Invoice amount must be greater than zero. Please add items with prices.' },
-        { status: 400 }
-      );
-    }
+    } = validation.data;
 
     // Calculate tax and total (amount is in dollars, convert to cents)
     const amountInCents = Math.round(amount * 100);
@@ -73,7 +66,7 @@ export async function POST(request: NextRequest) {
     const totalAmount = amountInCents + taxAmount;
 
     const invoice = await storage.createInvoice({
-      projectId: parseInt(project_id),
+      projectId: project_id,
       invoiceNumber: invoice_number,
       clientName: client_name || null,
       clientEmail: client_email || null,
@@ -97,7 +90,7 @@ export async function POST(request: NextRequest) {
         // Fetch project name if projectId exists
         let projectName = '';
         if (project_id) {
-          const project = await storage.getProject(parseInt(project_id));
+          const project = await storage.getProject(project_id);
           projectName = project?.name || '';
         }
         

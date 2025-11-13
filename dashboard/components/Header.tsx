@@ -5,6 +5,7 @@ import { NotificationBell } from './notifications/NotificationBell';
 import { useEffect, useState, memo, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
+import toast from 'react-hot-toast';
 
 interface User {
   id: number;
@@ -103,14 +104,15 @@ export const Header = memo(function Header() {
         setShowCreateTeamModal(false);
         setTeamName('');
         setTeamDescription('');
+        toast.success('Team created successfully');
         router.push(`/team?teamId=${data.team.id}`);
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to create team');
+        toast.error(error.error || 'Failed to create team');
       }
     } catch (error) {
       console.error('Failed to create team:', error);
-      alert('Failed to create team');
+      toast.error('Failed to create team');
     } finally {
       setCreatingTeam(false);
     }
@@ -164,6 +166,22 @@ export const Header = memo(function Header() {
     }
   }, [showTeamsDropdown, showUserDropdown]);
 
+  // Close dropdowns and modals on Escape key
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowTeamsDropdown(false);
+        setShowUserDropdown(false);
+        setShowCreateTeamModal(false);
+      }
+    };
+
+    if (showTeamsDropdown || showUserDropdown || showCreateTeamModal) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [showTeamsDropdown, showUserDropdown, showCreateTeamModal]);
+
   const initials = useMemo(() => {
     return user?.fullName
       ? user.fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -193,7 +211,7 @@ export const Header = memo(function Header() {
   return (
     <>
       <header className="sticky top-0 z-40 glass-medium border-b border-white/10">
-        <div className="flex items-center justify-between px-8 py-4">
+        <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-4">
           {/* Left section */}
           <div className="flex items-center space-x-8">
             {/* All Teams Dropdown */}
@@ -201,13 +219,16 @@ export const Header = memo(function Header() {
               <button
                 ref={teamsButtonRef}
                 onClick={() => setShowTeamsDropdown(!showTeamsDropdown)}
+                aria-expanded={showTeamsDropdown}
+                aria-haspopup="true"
+                aria-label="Open teams menu"
                 className="flex items-center space-x-2 glass-light px-3 py-1.5 rounded-lg hover:glass-medium duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-105 active:scale-95"
               >
                 <span className="text-sm font-medium text-text-primary">All Teams</span>
-                <ChevronDown 
+                <ChevronDown
                   className={`w-4 h-4 text-text-primary transition-transform duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] ${
                     showTeamsDropdown ? 'rotate-180' : ''
-                  }`} 
+                  }`}
                 />
               </button>
 
@@ -308,7 +329,8 @@ export const Header = memo(function Header() {
             <input
               type="text"
               placeholder="Search"
-              className="glass-medium border border-white/10 pl-10 pr-4 py-2 rounded-lg text-text-primary placeholder:text-text-tertiary text-sm w-64 focus:border-primary/50 focus:outline-none transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+              aria-label="Search projects and tasks"
+              className="glass-medium border border-white/10 pl-10 pr-4 py-2 rounded-lg text-text-primary placeholder:text-text-tertiary text-sm w-32 sm:w-48 md:w-64 focus:border-primary/50 focus:outline-none transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
             />
           </div>
 
@@ -320,13 +342,16 @@ export const Header = memo(function Header() {
             <button
               ref={userButtonRef}
               onClick={() => setShowUserDropdown(!showUserDropdown)}
+              aria-expanded={showUserDropdown}
+              aria-haspopup="true"
+              aria-label="Open user menu"
               className="flex items-center space-x-3 hover:opacity-80 transition-opacity duration-200"
             >
-              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-semibold  flex-shrink-0">
+              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-semibold flex-shrink-0">
                 {initials}
               </div>
               {user && (
-                <div className="block text-left">
+                <div className="hidden md:block text-left">
                   <div className="text-sm font-semibold text-text-primary">
                     {user.fullName || user.username}
                   </div>
