@@ -3,7 +3,21 @@
 import React, { useMemo } from 'react';
 import { useGantt } from './gantt-provider';
 import { useScrollSync } from './gantt-timeline';
-import { format, isToday, isWeekend, getWeek, getQuarter, startOfWeek, endOfWeek } from 'date-fns';
+import { 
+  format, 
+  isToday, 
+  isWeekend, 
+  getWeek, 
+  getQuarter, 
+  startOfWeek, 
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  startOfQuarter,
+  endOfQuarter,
+  startOfYear,
+  endOfYear
+} from 'date-fns';
 import { cn } from '@/lib/utils';
 
 // Memoized date cell components for better performance
@@ -14,16 +28,16 @@ const DayCell = React.memo(({ day, pixelsPerDay }: { day: Date; pixelsPerDay: nu
   return (
     <td
       className={cn(
-        'relative border-r border-white/[0.12] px-2 group transition-all duration-200',
+        'relative px-2 group transition-all duration-200 border-r border-white/[0.08]',
         isWeekendDay && 'bg-black/[0.25]',
         isTodayDate && 'bg-primary/[0.25]'
       )}
-      style={{ width: pixelsPerDay, minWidth: pixelsPerDay, verticalAlign: 'middle', textAlign: 'center' }}
+      style={{ width: pixelsPerDay, minWidth: Math.max(pixelsPerDay, 50), verticalAlign: 'middle', textAlign: 'center' }}
     >
       <div
         className={cn(
-          'flex items-center justify-center text-[12px] font-semibold transition-all duration-200 mb-0.5',
-          isTodayDate ? 'text-primary scale-110' : isWeekendDay ? 'text-white/40' : 'text-white/60'
+          'flex items-center justify-center text-[13px] font-semibold transition-all duration-200 mb-0.5',
+          isTodayDate ? 'text-primary scale-110' : isWeekendDay ? 'text-white/40' : 'text-white/70'
         )}
       >
         {format(day, 'd.MM')}
@@ -31,16 +45,21 @@ const DayCell = React.memo(({ day, pixelsPerDay }: { day: Date; pixelsPerDay: nu
       <div
         className={cn(
           'flex items-center justify-center text-[9px] font-medium uppercase tracking-wider transition-all duration-200',
-          isTodayDate ? 'text-primary/90 font-bold' : 'text-white/35'
+          isTodayDate ? 'text-primary/90 font-bold' : 'text-white/40'
         )}
       >
         {format(day, 'EEE')}
       </div>
+      {/* Purple line for today */}
       {isTodayDate && (
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary/80"></div>
       )}
     </td>
   );
+}, (prevProps, nextProps) => {
+  // Custom comparison for better memoization
+  return prevProps.day.getTime() === nextProps.day.getTime() && 
+         prevProps.pixelsPerDay === nextProps.pixelsPerDay;
 });
 DayCell.displayName = 'DayCell';
 
@@ -66,15 +85,15 @@ const WeekCell = React.memo(({ week, pixelsPerWeek }: { week: Date; pixelsPerWee
   return (
     <td
       className={cn(
-        'relative border-r border-white/[0.12] px-3 group transition-all duration-200',
+        'relative px-3 group transition-all duration-200 border-r border-white/[0.08]',
         isCurrentWeek && 'bg-primary/[0.25]'
       )}
-      style={{ width: pixelsPerWeek, minWidth: 100, verticalAlign: 'middle', textAlign: 'center' }}
+      style={{ width: pixelsPerWeek, minWidth: 120, verticalAlign: 'middle', textAlign: 'center' }}
     >
       <div
         className={cn(
-          'flex items-center justify-center text-[13px] font-semibold transition-all duration-200 mb-0.5',
-          isCurrentWeek ? 'text-primary scale-110' : 'text-white/60'
+          'flex items-center justify-center text-[14px] font-semibold transition-all duration-200 mb-0.5',
+          isCurrentWeek ? 'text-primary scale-110' : 'text-white/70'
         )}
       >
         Week {weekNumber}
@@ -82,11 +101,12 @@ const WeekCell = React.memo(({ week, pixelsPerWeek }: { week: Date; pixelsPerWee
       <div
         className={cn(
           'flex items-center justify-center text-[10px] font-medium tracking-wider transition-all duration-200',
-          isCurrentWeek ? 'text-primary/90 font-bold' : 'text-white/35'
+          isCurrentWeek ? 'text-primary/90 font-bold' : 'text-white/40'
         )}
       >
         {weekYear}
       </div>
+      {/* Purple line for current week */}
       {isCurrentWeek && (
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary/80"></div>
       )}
@@ -102,15 +122,15 @@ const MonthCell = React.memo(({ month, pixelsPerMonth }: { month: Date; pixelsPe
   return (
     <td
       className={cn(
-        'relative border-r border-white/[0.12] px-3 group transition-all duration-200',
+        'relative px-3 group transition-all duration-200 border-r border-white/[0.08]',
         isCurrentMonth && 'bg-primary/[0.25]'
       )}
       style={{ width: pixelsPerMonth, minWidth: pixelsPerMonth, verticalAlign: 'middle', textAlign: 'center' }}
     >
       <div
         className={cn(
-          'flex items-center justify-center text-[13px] font-semibold transition-all duration-200 mb-0.5',
-          isCurrentMonth ? 'text-primary scale-110' : 'text-white/60'
+          'flex items-center justify-center text-[14px] font-semibold transition-all duration-200 mb-0.5',
+          isCurrentMonth ? 'text-primary scale-110' : 'text-white/70'
         )}
       >
         {format(month, 'MMM')}
@@ -118,11 +138,12 @@ const MonthCell = React.memo(({ month, pixelsPerMonth }: { month: Date; pixelsPe
       <div
         className={cn(
           'flex items-center justify-center text-[10px] font-medium tracking-wider transition-all duration-200',
-          isCurrentMonth ? 'text-primary/90 font-bold' : 'text-white/35'
+          isCurrentMonth ? 'text-primary/90 font-bold' : 'text-white/40'
         )}
       >
         {format(month, 'yyyy')}
       </div>
+      {/* Purple line for current month */}
       {isCurrentMonth && (
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary/80"></div>
       )}
@@ -139,15 +160,15 @@ const QuarterCell = React.memo(({ quarter, pixelsPerQuarter }: { quarter: Date; 
   return (
     <td
       className={cn(
-        'relative border-r border-white/[0.12] px-4 group transition-all duration-200',
+        'relative px-4 group transition-all duration-200 border-r border-white/[0.08]',
         isCurrentQuarter && 'bg-primary/[0.25]'
       )}
       style={{ width: pixelsPerQuarter, minWidth: pixelsPerQuarter, verticalAlign: 'middle', textAlign: 'center' }}
     >
       <div
         className={cn(
-          'flex items-center justify-center text-[14px] font-semibold transition-all duration-200 mb-0.5',
-          isCurrentQuarter ? 'text-primary scale-110' : 'text-white/60'
+          'flex items-center justify-center text-[15px] font-semibold transition-all duration-200 mb-0.5',
+          isCurrentQuarter ? 'text-primary scale-110' : 'text-white/70'
         )}
       >
         Q{quarterNumber}
@@ -155,11 +176,12 @@ const QuarterCell = React.memo(({ quarter, pixelsPerQuarter }: { quarter: Date; 
       <div
         className={cn(
           'flex items-center justify-center text-[10px] font-medium tracking-wider transition-all duration-200',
-          isCurrentQuarter ? 'text-primary/90 font-bold' : 'text-white/35'
+          isCurrentQuarter ? 'text-primary/90 font-bold' : 'text-white/40'
         )}
       >
         {format(quarter, 'yyyy')}
       </div>
+      {/* Purple line for current quarter */}
       {isCurrentQuarter && (
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary/80"></div>
       )}
@@ -174,7 +196,7 @@ const YearCell = React.memo(({ year, pixelsPerYear }: { year: Date; pixelsPerYea
   return (
     <td
       className={cn(
-        'relative border-r border-white/[0.12] px-5 group transition-all duration-200',
+        'relative px-5 group transition-all duration-200 border-r border-white/[0.08]',
         isCurrentYear && 'bg-primary/[0.25]'
       )}
       style={{ width: pixelsPerYear, minWidth: pixelsPerYear, verticalAlign: 'middle', textAlign: 'center' }}
@@ -182,11 +204,12 @@ const YearCell = React.memo(({ year, pixelsPerYear }: { year: Date; pixelsPerYea
       <div
         className={cn(
           'flex items-center justify-center text-[16px] font-bold transition-all duration-200',
-          isCurrentYear ? 'text-primary scale-110' : 'text-white/60'
+          isCurrentYear ? 'text-primary scale-110' : 'text-white/70'
         )}
       >
         {format(year, 'yyyy')}
       </div>
+      {/* Purple line for current year */}
       {isCurrentYear && (
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary/80"></div>
       )}
@@ -232,41 +255,43 @@ export function GanttHeader() {
   return (
     <div
       ref={headerScrollRef}
-      className="sticky top-0 z-20 backdrop-blur-xl bg-black/[0.35] border-b border-white/[0.15] overflow-x-auto overflow-y-hidden scrollbar-hide"
+      className="sticky top-0 z-20 backdrop-blur-xl bg-black/[0.30] border-b border-white/[0.15] overflow-x-auto overflow-y-hidden scrollbar-hide"
       style={{
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         width: '100%',
         maxWidth: '100%',
+        height: '63px',
       }}
     >
-      <table 
-        className="border-collapse" 
-        style={{ 
-          width: `${totalWidth}px`, 
-          minWidth: `${totalWidth}px`,
-          tableLayout: 'fixed',
-        }}
-      >
-        <colgroup>
-          {viewMode === 'days' && filteredDates.filteredDays.map((day) => (
-            <col key={day.toISOString()} style={{ width: `${pixelsPerDay}px` }} />
-          ))}
-          {viewMode === 'weeks' && filteredDates.filteredWeeks.map((week) => (
-            <col key={week.toISOString()} style={{ width: `${pixelsPerWeek}px` }} />
-          ))}
-          {viewMode === 'months' && filteredDates.filteredMonths.map((month) => (
-            <col key={month.toISOString()} style={{ width: `${pixelsPerMonth}px` }} />
-          ))}
-          {viewMode === 'quarters' && filteredDates.filteredQuarters.map((quarter) => (
-            <col key={quarter.toISOString()} style={{ width: `${pixelsPerQuarter}px` }} />
-          ))}
-          {viewMode === 'years' && filteredDates.filteredYears.map((year) => (
-            <col key={year.toISOString()} style={{ width: `${pixelsPerYear}px` }} />
-          ))}
-        </colgroup>
-        <tbody>
-          <tr className="h-16">
+      <div className="px-4 h-full flex items-center">
+        <table
+          className="border-collapse h-full"
+          style={{
+            width: `${totalWidth}px`,
+            minWidth: `${totalWidth}px`,
+            tableLayout: 'fixed',
+          }}
+        >
+          <colgroup>
+            {viewMode === 'days' && filteredDates.filteredDays.map((day) => (
+              <col key={day.toISOString()} style={{ width: `${pixelsPerDay}px` }} />
+            ))}
+            {viewMode === 'weeks' && filteredDates.filteredWeeks.map((week) => (
+              <col key={week.toISOString()} style={{ width: `${pixelsPerWeek}px` }} />
+            ))}
+            {viewMode === 'months' && filteredDates.filteredMonths.map((month) => (
+              <col key={month.toISOString()} style={{ width: `${pixelsPerMonth}px` }} />
+            ))}
+            {viewMode === 'quarters' && filteredDates.filteredQuarters.map((quarter) => (
+              <col key={quarter.toISOString()} style={{ width: `${pixelsPerQuarter}px` }} />
+            ))}
+            {viewMode === 'years' && filteredDates.filteredYears.map((year) => (
+              <col key={year.toISOString()} style={{ width: `${pixelsPerYear}px` }} />
+            ))}
+          </colgroup>
+          <tbody>
+            <tr style={{ height: '100%' }}>
             {viewMode === 'days' && filteredDates.filteredDays.map((day) => (
               <DayCell key={day.toISOString()} day={day} pixelsPerDay={pixelsPerDay} />
             ))}
@@ -289,6 +314,7 @@ export function GanttHeader() {
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

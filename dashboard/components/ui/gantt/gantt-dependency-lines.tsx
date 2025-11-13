@@ -83,7 +83,7 @@ export function GanttDependencyLines({ features, className }: GanttDependencyLin
       // Calculate position for parent
       const left = differenceInDays(parent.startAt, startDate) * pixelsPerDay;
       const width = differenceInDays(parent.endAt, parent.startAt) * pixelsPerDay;
-      const rowHeight = 60;
+      const rowHeight = 63; // Matches sidebar task item height
       const taskHeight = 44;
       const topOffset = 8;
       const y = subRow * rowHeight + topOffset + taskHeight / 2;

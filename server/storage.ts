@@ -1,4 +1,4 @@
-import { eq, and, or, desc, isNull, gte, lte, sql, isNotNull, inArray, sum } from 'drizzle-orm';
+import { eq, and, or, desc, asc, isNull, gte, lte, sql, isNotNull, inArray, sum } from 'drizzle-orm';
 import { db } from './db';
 import {
   users,
@@ -259,7 +259,10 @@ export class DatabaseStorage {
     const ownedProjects = await db
       .select()
       .from(projects)
-      .where(eq(projects.userId, userId));
+      .where(and(
+        eq(projects.userId, userId),
+        isNull(projects.deletedAt)
+      ));
     return ownedProjects;
   }
 
@@ -267,7 +270,10 @@ export class DatabaseStorage {
     const [project] = await db
       .select()
       .from(projects)
-      .where(eq(projects.id, projectId));
+      .where(and(
+        eq(projects.id, projectId),
+        isNull(projects.deletedAt)
+      ));
     return project;
   }
 
@@ -290,7 +296,15 @@ export class DatabaseStorage {
 
   async deleteProject(projectId: number) {
     await db
-      .delete(projects)
+      .update(projects)
+      .set({ deletedAt: new Date() })
+      .where(eq(projects.id, projectId));
+  }
+
+  async restoreProject(projectId: number) {
+    await db
+      .update(projects)
+      .set({ deletedAt: null })
       .where(eq(projects.id, projectId));
   }
 
@@ -300,7 +314,8 @@ export class DatabaseStorage {
       .from(projects)
       .where(and(
         eq(projects.id, projectId),
-        eq(projects.userId, userId)
+        eq(projects.userId, userId),
+        isNull(projects.deletedAt)
       ));
     return !!ownedProject;
   }
@@ -355,7 +370,10 @@ export class DatabaseStorage {
       tasksResult = await db
         .select()
         .from(tasks)
-        .where(eq(tasks.projectId, projectId))
+        .where(and(
+          eq(tasks.projectId, projectId),
+          isNull(tasks.deletedAt)
+        ))
         .orderBy(desc(tasks.createdAt));
     }
     // If only userId is provided, show all tasks:
@@ -366,7 +384,10 @@ export class DatabaseStorage {
       const userProjects = await db
         .select({ id: projects.id })
         .from(projects)
-        .where(eq(projects.userId, userId));
+        .where(and(
+          eq(projects.userId, userId),
+          isNull(projects.deletedAt)
+        ));
 
       const projectIds = userProjects.map(p => p.id);
 
@@ -377,19 +398,23 @@ export class DatabaseStorage {
         tasksResult = await db
           .select()
           .from(tasks)
-          .where(
+          .where(and(
             or(
               eq(tasks.userId, userId),
               inArray(tasks.projectId, projectIds)
-            )
-          )
+            ),
+            isNull(tasks.deletedAt)
+          ))
           .orderBy(desc(tasks.createdAt));
       } else {
         // No projects, return only tasks created by user
         tasksResult = await db
           .select()
           .from(tasks)
-          .where(eq(tasks.userId, userId))
+          .where(and(
+            eq(tasks.userId, userId),
+            isNull(tasks.deletedAt)
+          ))
           .orderBy(desc(tasks.createdAt));
       }
     }
@@ -398,6 +423,7 @@ export class DatabaseStorage {
       tasksResult = await db
         .select()
         .from(tasks)
+        .where(isNull(tasks.deletedAt))
         .orderBy(desc(tasks.createdAt));
     }
 
@@ -406,7 +432,10 @@ export class DatabaseStorage {
   }
 
   async getTask(taskId: number): Promise<Task | undefined> {
-    const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+    const [task] = await db.select().from(tasks).where(and(
+      eq(tasks.id, taskId),
+      isNull(tasks.deletedAt)
+    ));
     return task;
   }
 
@@ -430,7 +459,17 @@ export class DatabaseStorage {
   }
 
   async deleteTask(taskId: number): Promise<void> {
-    await db.delete(tasks).where(eq(tasks.id, taskId));
+    await db
+      .update(tasks)
+      .set({ deletedAt: new Date() })
+      .where(eq(tasks.id, taskId));
+  }
+
+  async restoreTask(taskId: number): Promise<void> {
+    await db
+      .update(tasks)
+      .set({ deletedAt: null })
+      .where(eq(tasks.id, taskId));
   }
 
   // Subtasks
@@ -438,7 +477,10 @@ export class DatabaseStorage {
     return await db
       .select()
       .from(tasks)
-      .where(eq(tasks.parentId, parentId))
+      .where(and(
+        eq(tasks.parentId, parentId),
+        isNull(tasks.deletedAt)
+      ))
       .orderBy(desc(tasks.createdAt));
   }
 
@@ -626,17 +668,24 @@ export class DatabaseStorage {
       return await db
         .select()
         .from(invoices)
-        .where(eq(invoices.projectId, projectId))
+        .where(and(
+          eq(invoices.projectId, projectId),
+          isNull(invoices.deletedAt)
+        ))
         .orderBy(desc(invoices.createdAt));
     }
     return await db
       .select()
       .from(invoices)
+      .where(isNull(invoices.deletedAt))
       .orderBy(desc(invoices.createdAt));
   }
 
   async getInvoice(invoiceId: number): Promise<Invoice | undefined> {
-    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, invoiceId));
+    const [invoice] = await db.select().from(invoices).where(and(
+      eq(invoices.id, invoiceId),
+      isNull(invoices.deletedAt)
+    ));
     return invoice;
   }
 
@@ -655,7 +704,17 @@ export class DatabaseStorage {
   }
 
   async deleteInvoice(invoiceId: number): Promise<void> {
-    await db.delete(invoices).where(eq(invoices.id, invoiceId));
+    await db
+      .update(invoices)
+      .set({ deletedAt: new Date() })
+      .where(eq(invoices.id, invoiceId));
+  }
+
+  async restoreInvoice(invoiceId: number): Promise<void> {
+    await db
+      .update(invoices)
+      .set({ deletedAt: null })
+      .where(eq(invoices.id, invoiceId));
   }
 
   // Expenses
@@ -753,7 +812,10 @@ export class DatabaseStorage {
     const userProjects = await db
       .select()
       .from(projects)
-      .where(eq(projects.userId, userId));
+      .where(and(
+        eq(projects.userId, userId),
+        isNull(projects.deletedAt)
+      ));
 
     // Calculate total budget (in cents)
     const totalBudget = userProjects.reduce((sum, project) => {
@@ -825,7 +887,10 @@ export class DatabaseStorage {
     const userProjects = await db
       .select()
       .from(projects)
-      .where(eq(projects.userId, userId));
+      .where(and(
+        eq(projects.userId, userId),
+        isNull(projects.deletedAt)
+      ));
     
     const projectIds = userProjects.map(p => p.id);
     
@@ -901,7 +966,10 @@ export class DatabaseStorage {
     const userProjects = await db
       .select()
       .from(projects)
-      .where(eq(projects.userId, userId));
+      .where(and(
+        eq(projects.userId, userId),
+        isNull(projects.deletedAt)
+      ));
     
     const projectIds = userProjects.map(p => p.id);
     
@@ -951,7 +1019,10 @@ export class DatabaseStorage {
     const userProjects = await db
       .select()
       .from(projects)
-      .where(eq(projects.userId, userId));
+      .where(and(
+        eq(projects.userId, userId),
+        isNull(projects.deletedAt)
+      ));
     
     const projectIds = userProjects.map(p => p.id);
     
@@ -1105,6 +1176,7 @@ export class DatabaseStorage {
     if (conditions.length === 0) {
       return [];
     }
+    conditions.push(isNull(fileAttachments.deletedAt));
     return await db
       .select()
       .from(fileAttachments)
@@ -1113,19 +1185,35 @@ export class DatabaseStorage {
   }
 
   async getFileAttachment(id: number): Promise<FileAttachment | undefined> {
-    const [file] = await db.select().from(fileAttachments).where(eq(fileAttachments.id, id));
+    const [file] = await db.select().from(fileAttachments).where(and(
+      eq(fileAttachments.id, id),
+      isNull(fileAttachments.deletedAt)
+    ));
     return file;
   }
 
   async deleteFileAttachment(id: number): Promise<void> {
-    await db.delete(fileAttachments).where(eq(fileAttachments.id, id));
+    await db
+      .update(fileAttachments)
+      .set({ deletedAt: new Date() })
+      .where(eq(fileAttachments.id, id));
+  }
+
+  async restoreFileAttachment(id: number): Promise<void> {
+    await db
+      .update(fileAttachments)
+      .set({ deletedAt: null })
+      .where(eq(fileAttachments.id, id));
   }
 
   async getFileVersions(parentFileId: number): Promise<FileAttachment[]> {
     return await db
       .select()
       .from(fileAttachments)
-      .where(eq(fileAttachments.parentFileId, parentFileId))
+      .where(and(
+        eq(fileAttachments.parentFileId, parentFileId),
+        isNull(fileAttachments.deletedAt)
+      ))
       .orderBy(desc(fileAttachments.version));
   }
 
@@ -1270,7 +1358,10 @@ export class DatabaseStorage {
     const [invoice] = await db
       .select()
       .from(invoices)
-      .where(eq(invoices.publicToken, token));
+      .where(and(
+        eq(invoices.publicToken, token),
+        isNull(invoices.deletedAt)
+      ));
     return invoice;
   }
 }

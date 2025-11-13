@@ -471,6 +471,7 @@ export default function DashboardPage() {
   const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [gridPatternSize, setGridPatternSize] = useState<number>(DEFAULT_GRID_PATTERN);
+  const hasLoadedFromStorage = useRef(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -542,7 +543,10 @@ export default function DashboardPage() {
     if (typeof window === 'undefined') return;
 
     const stored = window.localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (!stored) return;
+    if (!stored) {
+      hasLoadedFromStorage.current = true;
+      return;
+    }
 
     try {
       const parsed = JSON.parse(stored);
@@ -566,13 +570,18 @@ export default function DashboardPage() {
         });
         setWidgetSizes(restoredSizes);
       }
+      hasLoadedFromStorage.current = true;
     } catch (error) {
       console.warn('Failed to parse dashboard widget configuration:', error);
+      hasLoadedFromStorage.current = true;
     }
   }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    // Don't save to localStorage until we've loaded from it (prevents overwriting with defaults)
+    if (!hasLoadedFromStorage.current) return;
+    
     window.localStorage.setItem(
       LOCAL_STORAGE_KEY,
       JSON.stringify({
@@ -620,7 +629,7 @@ export default function DashboardPage() {
     }
 
     setActiveTask(null);
-
+    
     if (!over) return;
 
     const taskId = typeof active.id === 'number' ? active.id : parseInt(active.id as string, 10);
@@ -633,7 +642,7 @@ export default function DashboardPage() {
     if (typeof dateId === 'string' && dateId.startsWith('date-')) {
       const dateStr = dateId.replace('date-', '');
       const originalTask = active.data.current?.task;
-
+      
       try {
         if (originalTask?.start_date && originalTask?.end_date) {
           const startDate = new Date(originalTask.start_date);
@@ -641,11 +650,11 @@ export default function DashboardPage() {
           const duration = Math.ceil(
             (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
           );
-
+          
           const newStartDate = new Date(dateStr);
           const newEndDate = new Date(newStartDate);
           newEndDate.setDate(newStartDate.getDate() + duration);
-
+          
           await axios.put(`/api/tasks/${taskId}`, {
             start_date: newStartDate.toISOString().split('T')[0],
             due_date: dateStr,
@@ -656,7 +665,7 @@ export default function DashboardPage() {
             due_date: dateStr,
           });
         }
-
+        
         setRefreshKey((prev) => prev + 1);
         toast.success('Task date updated successfully');
       } catch (error: any) {
@@ -765,8 +774,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <DndContext
-      sensors={sensors}
+    <DndContext 
+      sensors={sensors} 
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       modifiers={[widgetGridSnapModifier]}
@@ -778,16 +787,16 @@ export default function DashboardPage() {
             <p className="text-sm text-text-tertiary">
               Tailor the workspace by choosing which widgets appear on your home view.
             </p>
-          </div>
-          <button
+        </div>
+                <button
             type="button"
             onClick={() => setIsCustomizationOpen((prev) => !prev)}
             className="flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-text-secondary transition-all hover:border-primary/60 hover:text-text-primary"
-          >
+                >
             <SlidersHorizontal className="h-4 w-4" />
             {isCustomizationOpen ? 'Hide customization' : 'Customize dashboard'}
-          </button>
-        </div>
+                </button>
+              </div>
 
         {isCustomizationOpen && (
           <DashboardCustomizationPanel
@@ -795,7 +804,7 @@ export default function DashboardPage() {
             availableWidgets={AVAILABLE_WIDGETS}
             onToggleWidget={handleToggleWidget}
             onReset={handleResetWidgets}
-          />
+                    />
         )}
 
         {renderableWidgets.length > 0 ? (

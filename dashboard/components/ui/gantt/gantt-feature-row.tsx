@@ -4,7 +4,25 @@ import React, { ReactNode, useMemo, useState } from 'react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, useDraggable, useDroppable, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { useGantt, GanttFeature } from './gantt-provider';
-import { differenceInDays, differenceInWeeks, differenceInMonths, differenceInQuarters, differenceInYears, addDays, format, startOfWeek, endOfWeek } from 'date-fns';
+import { 
+  differenceInDays, 
+  differenceInWeeks, 
+  differenceInMonths, 
+  differenceInQuarters, 
+  differenceInYears, 
+  addDays, 
+  format, 
+  startOfWeek, 
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  startOfQuarter,
+  endOfQuarter,
+  startOfYear,
+  endOfYear,
+  eachWeekOfInterval,
+  eachMonthOfInterval
+} from 'date-fns';
 import { cn } from '@/lib/utils';
 import { GripVertical } from 'lucide-react';
 import { GanttTooltip } from './gantt-tooltip';
@@ -13,11 +31,12 @@ interface GanttFeatureRowProps {
   features: GanttFeature[];
   onMove?: (id: string, startAt: Date, endAt: Date | null) => void;
   onResize?: (id: string, startAt: Date, endAt: Date) => void;
+  onEditItem?: (id: string) => void;
   children?: (feature: GanttFeature) => ReactNode;
   className?: string;
 }
 
-export function GanttFeatureRow({ features, onMove, onResize, children, className }: GanttFeatureRowProps) {
+export function GanttFeatureRow({ features, onMove, onResize, onEditItem, children, className }: GanttFeatureRowProps) {
   const { startDate, endDate, baseStartDate, firstDate, pixelsPerDay, pixelsPerWeek, pixelsPerMonth, pixelsPerQuarter, pixelsPerYear, viewMode, onMoveItem, days, weeks, months, quarters, years, collapsedTasks } = useGantt();
 
   // Calculate pixels per day based on view mode
@@ -229,7 +248,8 @@ export function GanttFeatureRow({ features, onMove, onResize, children, classNam
   const maxSubRows = Math.max(1, featuresWithPositions.length > 0 
     ? Math.max(...featuresWithPositions.map(f => f.subRow)) + 1 
     : 1);
-  const subRowHeight = 60; // Base row height
+  // All rows have the same height (63px)
+  const subRowHeight = 63; // Row height
   const totalHeight = maxSubRows * subRowHeight;
   
   // Calculate total width - match header width exactly
@@ -324,33 +344,38 @@ export function GanttFeatureRow({ features, onMove, onResize, children, classNam
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className={cn('flex relative transition-colors duration-200', className)} style={{ height: totalHeight, minHeight: 56 }}>
-        {/* Full-width background and border - table structure with date columns */}
-        <div 
-          className="absolute inset-0 bg-black/[0.25] border-b border-white/[0.12]"
-          style={{ width: `${totalWidth}px` }}
-        />
+      <div className={cn('flex relative transition-colors duration-200 px-4', className)} style={{ height: totalHeight, minHeight: 63 }}>
         {/* Table structure: dates as columns (not visually displayed, but used for structure) */}
         <div className="relative" style={{ width: `${totalWidth}px`, minWidth: `${totalWidth}px` }}>
-          {featuresWithPositions.map((feature) => (
+          {featuresWithPositions.map((feature, index) => {
+            const isLastRow = feature.subRow === maxSubRows - 1;
+
+            // All rows have the same height
+            const topPosition = feature.subRow * subRowHeight;
+
+            return (
             <div
               key={feature.id}
-              className="absolute w-full"
+              className="absolute w-full flex items-center border-b border-white/[0.08]"
               style={{
-                top: `${feature.subRow * subRowHeight}px`,
+                top: `${topPosition}px`,
                 height: `${subRowHeight}px`,
               }}
             >
+              <div className="relative w-full h-full flex items-center">
               <FeatureBar
                 feature={feature}
                 startDate={firstDate}
                 pixelsPerDay={pixelsPerUnit}
                 isDragging={activeId === feature.id}
                 onResize={onResize}
+                onEditItem={onEditItem}
                 children={children}
               />
+              </div>
             </div>
-          ))}
+            );
+          })}
           <DateDropZones startDate={firstDate} pixelsPerDay={pixelsPerUnit} viewMode={viewMode} />
         </div>
       </div>
@@ -364,10 +389,11 @@ interface FeatureBarProps {
   pixelsPerDay: number;
   isDragging: boolean;
   onResize?: (id: string, startAt: Date, endAt: Date) => void;
+  onEditItem?: (id: string) => void;
   children?: (feature: GanttFeature) => ReactNode;
 }
 
-const FeatureBar = React.memo(function FeatureBar({ feature, startDate, pixelsPerDay, isDragging, onResize, children }: FeatureBarProps) {
+const FeatureBar = React.memo(function FeatureBar({ feature, startDate, pixelsPerDay, isDragging, onResize, onEditItem, children }: FeatureBarProps) {
   const { viewMode, pixelsPerWeek, pixelsPerMonth, pixelsPerQuarter, pixelsPerYear, days, weeks, months, quarters, years, firstDate, dateRangeStart, dateRangeEnd } = useGantt();
   
   // Filter dates the same way as header does
@@ -486,10 +512,41 @@ const FeatureBar = React.memo(function FeatureBar({ feature, startDate, pixelsPe
     let widthPx: number;
     
     switch (viewMode) {
-      case 'days':
-        leftPx = differenceInDays(feature.startAt, startDate) * pixelsPerDay;
-        widthPx = differenceInDays(feature.endAt, feature.startAt) * pixelsPerDay;
+      case 'days': {
+        // Use filtered days array (same as header) for consistency
+        const startIndex = filteredDates.filteredDays.findIndex(d => {
+          return d.getFullYear() === feature.startAt.getFullYear() &&
+                 d.getMonth() === feature.startAt.getMonth() &&
+                 d.getDate() === feature.startAt.getDate();
+        });
+        
+        const endIndex = filteredDates.filteredDays.findIndex(d => {
+          return d.getFullYear() === feature.endAt.getFullYear() &&
+                 d.getMonth() === feature.endAt.getMonth() &&
+                 d.getDate() === feature.endAt.getDate();
+        });
+        
+        // Calculate position relative to firstDate (at index 0 in filtered array)
+        if (startIndex >= 0) {
+          // Use array index directly - firstDate is at index 0 in filtered array
+          leftPx = startIndex * pixelsPerDay;
+        } else {
+          // Fallback: calculate difference from firstDate
+          leftPx = differenceInDays(feature.startAt, firstDate) * pixelsPerDay;
+        }
+        
+        if (startIndex >= 0 && endIndex >= 0 && endIndex >= startIndex) {
+          // Calculate width based on number of days spanned
+          widthPx = (endIndex - startIndex + 1) * pixelsPerDay;
+        } else if (startIndex >= 0) {
+          // Start found but end not found - use minimum width
+          widthPx = pixelsPerDay;
+        } else {
+          // Fallback to differenceInDays if index not found
+          widthPx = Math.max(pixelsPerDay, (differenceInDays(feature.endAt, feature.startAt) + 1) * pixelsPerDay);
+        }
         break;
+      }
       case 'weeks': {
         // Use filtered weeks array (same as header) for consistency
         // Find indices in filtered weeks array
@@ -506,159 +563,276 @@ const FeatureBar = React.memo(function FeatureBar({ feature, startDate, pixelsPe
         });
         
         // Calculate position relative to firstDate (which is at index 0 in filtered array)
+        let dayOffsetPx = 0;
         if (startIndex >= 0) {
           // Use array index directly - firstDate is at index 0 in filtered array
-          leftPx = startIndex * pixelsPerWeek;
+          const weekStart = startOfWeek(feature.startAt, { weekStartsOn: 1 });
+          const dayOffset = differenceInDays(feature.startAt, weekStart); // 0-6
+          dayOffsetPx = (dayOffset / 7) * pixelsPerWeek;
+          leftPx = startIndex * pixelsPerWeek + dayOffsetPx;
         } else {
           // If not found, calculate difference from firstDate
           const taskWeekStart = startOfWeek(feature.startAt, { weekStartsOn: 1 });
           const firstWeekStart = startOfWeek(firstDate, { weekStartsOn: 1 });
-          leftPx = differenceInWeeks(taskWeekStart, firstWeekStart) * pixelsPerWeek;
+          const dayOffset = differenceInDays(feature.startAt, taskWeekStart);
+          dayOffsetPx = (dayOffset / 7) * pixelsPerWeek;
+          leftPx = differenceInWeeks(taskWeekStart, firstWeekStart) * pixelsPerWeek + dayOffsetPx;
+        }
+        
+        // Calculate width with end offset
+        let endDayOffsetPx = 0;
+        if (endIndex >= 0) {
+          const endWeekStart = startOfWeek(feature.endAt, { weekStartsOn: 1 });
+          const endDayOffset = differenceInDays(feature.endAt, endWeekStart); // 0-6
+          endDayOffsetPx = ((endDayOffset + 1) / 7) * pixelsPerWeek; // +1 to include the end day
         }
         
         if (startIndex >= 0 && endIndex >= 0 && endIndex >= startIndex) {
-          // Calculate width based on number of weeks spanned
-          widthPx = (endIndex - startIndex + 1) * pixelsPerWeek;
+          // Calculate width based on number of weeks spanned, minus start offset, plus end offset
+          const fullWeeksWidth = (endIndex - startIndex) * pixelsPerWeek;
+          widthPx = fullWeeksWidth - dayOffsetPx + endDayOffsetPx;
         } else if (startIndex >= 0) {
-          // Start found but end not found - use minimum width
-          widthPx = pixelsPerWeek;
+          // Start found but end not found - use remaining week width
+          widthPx = pixelsPerWeek - dayOffsetPx;
         } else if (endIndex >= 0) {
           // End found but start not found
-          widthPx = pixelsPerWeek;
+          widthPx = endDayOffsetPx;
         } else {
           // Neither found - calculate from week difference
           const startWeekStart = startOfWeek(feature.startAt, { weekStartsOn: 1 });
           const endWeekStart = startOfWeek(feature.endAt, { weekStartsOn: 1 });
-          const weeksSpan = differenceInWeeks(endWeekStart, startWeekStart) + 1;
-          widthPx = Math.max(pixelsPerWeek, weeksSpan * pixelsPerWeek);
+          const weeksSpan = differenceInWeeks(endWeekStart, startWeekStart);
+          const startDayOffset = differenceInDays(feature.startAt, startWeekStart);
+          const endDayOffset = differenceInDays(feature.endAt, endWeekStart);
+          const startOffsetPx = (startDayOffset / 7) * pixelsPerWeek;
+          const endOffsetPx = ((endDayOffset + 1) / 7) * pixelsPerWeek;
+          widthPx = weeksSpan * pixelsPerWeek - startOffsetPx + endOffsetPx;
         }
         break;
       }
       case 'months': {
-        // Find index of start month and end month in the months array
-        const startIndex = findDateIndex(feature.startAt, months, 'months');
-        const endIndex = findDateIndex(feature.endAt, months, 'months');
+        // Use filtered months array (same as header) for consistency
+        const startIndex = findDateIndex(feature.startAt, filteredDates.filteredMonths, 'months');
+        const endIndex = findDateIndex(feature.endAt, filteredDates.filteredMonths, 'months');
         
-        // Always use firstDate (first date in array) as reference point for synchronization
+        // Always use firstDate (first date in filtered array, at index 0) as reference point
         // This ensures header and rows are perfectly aligned
+        let dayOffsetPx = 0;
         if (startIndex >= 0) {
-          // Use array index directly - firstDate is at index 0
-          leftPx = startIndex * pixelsPerMonth;
+          // Use array index directly - firstDate is at index 0 in filtered array
+          const monthStart = startOfMonth(feature.startAt);
+          const monthEnd = endOfMonth(feature.startAt);
+          const daysInMonth = differenceInDays(monthEnd, monthStart) + 1;
+          const dayOffset = differenceInDays(feature.startAt, monthStart);
+          dayOffsetPx = (dayOffset / daysInMonth) * pixelsPerMonth;
+          leftPx = startIndex * pixelsPerMonth + dayOffsetPx;
         } else {
-          // Fallback: find the month that contains startDate (which is firstDate)
-          const monthStart = new Date(feature.startAt.getFullYear(), feature.startAt.getMonth(), 1);
-          const firstMonthStart = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-          leftPx = differenceInMonths(monthStart, firstMonthStart) * pixelsPerMonth;
+          // Fallback: calculate difference from firstDate
+          const monthStart = startOfMonth(feature.startAt);
+          const firstMonthStart = startOfMonth(firstDate);
+          const monthEnd = endOfMonth(feature.startAt);
+          const daysInMonth = differenceInDays(monthEnd, monthStart) + 1;
+          const dayOffset = differenceInDays(feature.startAt, monthStart);
+          dayOffsetPx = (dayOffset / daysInMonth) * pixelsPerMonth;
+          leftPx = differenceInMonths(monthStart, firstMonthStart) * pixelsPerMonth + dayOffsetPx;
+        }
+        
+        // Calculate width with end offset
+        let endDayOffsetPx = 0;
+        if (endIndex >= 0) {
+          const endMonthStart = startOfMonth(feature.endAt);
+          const endMonthEnd = endOfMonth(feature.endAt);
+          const endDaysInMonth = differenceInDays(endMonthEnd, endMonthStart) + 1;
+          const endDayOffset = differenceInDays(feature.endAt, endMonthStart);
+          endDayOffsetPx = ((endDayOffset + 1) / endDaysInMonth) * pixelsPerMonth; // +1 to include the end day
         }
         
         if (startIndex >= 0 && endIndex >= 0 && endIndex >= startIndex) {
-          // Calculate width based on number of months spanned
-          widthPx = (endIndex - startIndex + 1) * pixelsPerMonth;
+          // Calculate width based on number of months spanned, minus start offset, plus end offset
+          const fullMonthsWidth = (endIndex - startIndex) * pixelsPerMonth;
+          widthPx = fullMonthsWidth - dayOffsetPx + endDayOffsetPx;
         } else if (startIndex >= 0) {
-          // Start found but end not found - use minimum width
-          widthPx = pixelsPerMonth;
+          // Start found but end not found - use remaining month width
+          widthPx = pixelsPerMonth - dayOffsetPx;
         } else {
           // Fallback to differenceInMonths if index not found
-          const monthStart = new Date(feature.startAt.getFullYear(), feature.startAt.getMonth(), 1);
-          const monthEnd = new Date(feature.endAt.getFullYear(), feature.endAt.getMonth(), 1);
-          widthPx = Math.max(pixelsPerMonth, (differenceInMonths(monthEnd, monthStart) + 1) * pixelsPerMonth);
+          const monthStart = startOfMonth(feature.startAt);
+          const monthEnd = startOfMonth(feature.endAt);
+          const startMonthEnd = endOfMonth(feature.startAt);
+          const endMonthEnd = endOfMonth(feature.endAt);
+          const startDaysInMonth = differenceInDays(startMonthEnd, monthStart) + 1;
+          const endDaysInMonth = differenceInDays(endMonthEnd, monthEnd) + 1;
+          const startDayOffset = differenceInDays(feature.startAt, monthStart);
+          const endDayOffset = differenceInDays(feature.endAt, monthEnd);
+          const startOffsetPx = (startDayOffset / startDaysInMonth) * pixelsPerMonth;
+          const endOffsetPx = ((endDayOffset + 1) / endDaysInMonth) * pixelsPerMonth;
+          const monthsSpan = differenceInMonths(monthEnd, monthStart);
+          widthPx = monthsSpan * pixelsPerMonth - startOffsetPx + endOffsetPx;
         }
         break;
       }
       case 'quarters': {
-        // Calculate quarter start dates for the feature
+        // Use filtered quarters array (same as header) for consistency
         const quarterStart = new Date(feature.startAt.getFullYear(), Math.floor(feature.startAt.getMonth() / 3) * 3, 1);
         const quarterEnd = new Date(feature.endAt.getFullYear(), Math.floor(feature.endAt.getMonth() / 3) * 3, 1);
         
-        // Find the index of firstDate in quarters array to use as offset
-        const firstQuarterStart = new Date(firstDate.getFullYear(), Math.floor(firstDate.getMonth() / 3) * 3, 1);
-        const firstQuarterIndex = quarters.findIndex(q => {
-          const qYear = q.getFullYear();
-          const qMonth = q.getMonth();
-          const qQuarterStart = new Date(qYear, Math.floor(qMonth / 3) * 3, 1);
-          return qQuarterStart.getTime() === firstQuarterStart.getTime();
-        });
-        
-        // Find indices in quarters array by comparing quarter start dates
-        // eachQuarterOfInterval returns dates at the start of each quarter (1st day of quarter)
-        const startIndex = quarters.findIndex(q => {
+        // Find indices in filtered quarters array by comparing quarter start dates
+        // firstDate is at index 0 in filtered array
+        const startIndex = filteredDates.filteredQuarters.findIndex(q => {
           const qYear = q.getFullYear();
           const qMonth = q.getMonth();
           const qQuarterStart = new Date(qYear, Math.floor(qMonth / 3) * 3, 1);
           return qQuarterStart.getTime() === quarterStart.getTime();
         });
         
-        const endIndex = quarters.findIndex(q => {
+        const endIndex = filteredDates.filteredQuarters.findIndex(q => {
           const qYear = q.getFullYear();
           const qMonth = q.getMonth();
           const qQuarterStart = new Date(qYear, Math.floor(qMonth / 3) * 3, 1);
           return qQuarterStart.getTime() === quarterEnd.getTime();
         });
         
-        // Calculate position relative to firstDate
-        // If firstDate is at index N in quarters array, and our task starts at index M,
-        // then position is (M - N) * pixelsPerQuarter
-        if (startIndex >= 0 && firstQuarterIndex >= 0) {
-          // Use relative index from firstDate
-          leftPx = (startIndex - firstQuarterIndex) * pixelsPerQuarter;
-        } else if (startIndex >= 0) {
-          // Start found but firstDate not found - use absolute index
-          leftPx = startIndex * pixelsPerQuarter;
+        // Calculate position relative to firstDate (at index 0 in filtered array)
+        let weekOffsetPx = 0;
+        if (startIndex >= 0) {
+          // Use array index directly - firstDate is at index 0 in filtered array
+          const qStart = startOfQuarter(feature.startAt);
+          const qEnd = endOfQuarter(feature.startAt);
+          const quarterWeeks = eachWeekOfInterval({ start: qStart, end: qEnd }, { weekStartsOn: 1 });
+          const taskWeekStart = startOfWeek(feature.startAt, { weekStartsOn: 1 });
+          const weekIndex = quarterWeeks.findIndex(w => {
+            const wStart = startOfWeek(w, { weekStartsOn: 1 });
+            return wStart.getTime() === taskWeekStart.getTime();
+          });
+          weekOffsetPx = weekIndex >= 0 ? (weekIndex / quarterWeeks.length) * pixelsPerQuarter : 0;
+          leftPx = startIndex * pixelsPerQuarter + weekOffsetPx;
         } else {
-          // If not found, calculate difference from firstDate
-          if (firstQuarterIndex >= 0) {
-            // Calculate difference in quarters from firstDate
-            const quartersDiff = differenceInQuarters(quarterStart, firstQuarterStart);
-            leftPx = quartersDiff * pixelsPerQuarter;
-          } else {
-            // Last resort: use difference from firstDate
-            leftPx = differenceInQuarters(quarterStart, firstDate) * pixelsPerQuarter;
-          }
+          // Fallback: calculate difference from firstDate
+          const firstQuarterStart = new Date(firstDate.getFullYear(), Math.floor(firstDate.getMonth() / 3) * 3, 1);
+          const qStart = startOfQuarter(feature.startAt);
+          const qEnd = endOfQuarter(feature.startAt);
+          const quarterWeeks = eachWeekOfInterval({ start: qStart, end: qEnd }, { weekStartsOn: 1 });
+          const taskWeekStart = startOfWeek(feature.startAt, { weekStartsOn: 1 });
+          const weekIndex = quarterWeeks.findIndex(w => {
+            const wStart = startOfWeek(w, { weekStartsOn: 1 });
+            return wStart.getTime() === taskWeekStart.getTime();
+          });
+          weekOffsetPx = weekIndex >= 0 ? (weekIndex / quarterWeeks.length) * pixelsPerQuarter : 0;
+          leftPx = differenceInQuarters(quarterStart, firstQuarterStart) * pixelsPerQuarter + weekOffsetPx;
+        }
+        
+        // Calculate width with end offset
+        let endWeekOffsetPx = 0;
+        if (endIndex >= 0) {
+          const endQStart = startOfQuarter(feature.endAt);
+          const endQEnd = endOfQuarter(feature.endAt);
+          const endQuarterWeeks = eachWeekOfInterval({ start: endQStart, end: endQEnd }, { weekStartsOn: 1 });
+          const endTaskWeekStart = startOfWeek(feature.endAt, { weekStartsOn: 1 });
+          const endWeekIndex = endQuarterWeeks.findIndex(w => {
+            const wStart = startOfWeek(w, { weekStartsOn: 1 });
+            return wStart.getTime() === endTaskWeekStart.getTime();
+          });
+          endWeekOffsetPx = endWeekIndex >= 0 ? ((endWeekIndex + 1) / endQuarterWeeks.length) * pixelsPerQuarter : 0; // +1 to include the end week
         }
         
         if (startIndex >= 0 && endIndex >= 0 && endIndex >= startIndex) {
-          // Calculate width based on number of quarters spanned
-          widthPx = (endIndex - startIndex + 1) * pixelsPerQuarter;
+          // Calculate width based on number of quarters spanned, minus start offset, plus end offset
+          const fullQuartersWidth = (endIndex - startIndex) * pixelsPerQuarter;
+          widthPx = fullQuartersWidth - weekOffsetPx + endWeekOffsetPx;
         } else if (startIndex >= 0) {
-          // Start found but end not found - use minimum width
-          widthPx = pixelsPerQuarter;
+          // Start found but end not found - use remaining quarter width
+          widthPx = pixelsPerQuarter - weekOffsetPx;
         } else if (endIndex >= 0) {
           // End found but start not found
-          widthPx = pixelsPerQuarter;
+          widthPx = endWeekOffsetPx;
         } else {
           // Neither found - calculate from quarter difference
-          const quartersSpan = differenceInQuarters(quarterEnd, quarterStart) + 1;
-          widthPx = Math.max(pixelsPerQuarter, quartersSpan * pixelsPerQuarter);
+          const startQStart = startOfQuarter(feature.startAt);
+          const startQEnd = endOfQuarter(feature.startAt);
+          const endQStart = startOfQuarter(feature.endAt);
+          const endQEnd = endOfQuarter(feature.endAt);
+          const startQuarterWeeks = eachWeekOfInterval({ start: startQStart, end: startQEnd }, { weekStartsOn: 1 });
+          const endQuarterWeeks = eachWeekOfInterval({ start: endQStart, end: endQEnd }, { weekStartsOn: 1 });
+          const startTaskWeekStart = startOfWeek(feature.startAt, { weekStartsOn: 1 });
+          const endTaskWeekStart = startOfWeek(feature.endAt, { weekStartsOn: 1 });
+          const startWeekIndex = startQuarterWeeks.findIndex(w => {
+            const wStart = startOfWeek(w, { weekStartsOn: 1 });
+            return wStart.getTime() === startTaskWeekStart.getTime();
+          });
+          const endWeekIndex = endQuarterWeeks.findIndex(w => {
+            const wStart = startOfWeek(w, { weekStartsOn: 1 });
+            return wStart.getTime() === endTaskWeekStart.getTime();
+          });
+          const startOffsetPx = startWeekIndex >= 0 ? (startWeekIndex / startQuarterWeeks.length) * pixelsPerQuarter : 0;
+          const endOffsetPx = endWeekIndex >= 0 ? ((endWeekIndex + 1) / endQuarterWeeks.length) * pixelsPerQuarter : 0;
+          const quartersSpan = differenceInQuarters(quarterEnd, quarterStart);
+          widthPx = quartersSpan * pixelsPerQuarter - startOffsetPx + endOffsetPx;
         }
         break;
       }
       case 'years': {
-        // Find index of start year and end year in the years array
-        const startIndex = findDateIndex(feature.startAt, years, 'years');
-        const endIndex = findDateIndex(feature.endAt, years, 'years');
+        // Use filtered years array (same as header) for consistency
+        const startIndex = findDateIndex(feature.startAt, filteredDates.filteredYears, 'years');
+        const endIndex = findDateIndex(feature.endAt, filteredDates.filteredYears, 'years');
         
-        // Always use firstDate (first date in array) as reference point for synchronization
+        // Always use firstDate (first date in filtered array, at index 0) as reference point
+        // This ensures header and rows are perfectly aligned
+        let monthOffsetPx = 0;
         if (startIndex >= 0) {
-          // Use array index directly - firstDate is at index 0
-          leftPx = startIndex * pixelsPerYear;
+          // Use array index directly - firstDate is at index 0 in filtered array
+          const yearStart = startOfYear(feature.startAt);
+          const yearMonths = eachMonthOfInterval({ start: yearStart, end: endOfYear(feature.startAt) });
+          const monthIndex = yearMonths.findIndex(m => 
+            m.getFullYear() === feature.startAt.getFullYear() && m.getMonth() === feature.startAt.getMonth()
+          );
+          monthOffsetPx = monthIndex >= 0 ? (monthIndex / 12) * pixelsPerYear : 0;
+          leftPx = startIndex * pixelsPerYear + monthOffsetPx;
         } else {
-          // Fallback: find the year that contains startDate (which is firstDate)
-          const yearStart = new Date(feature.startAt.getFullYear(), 0, 1);
-          const firstYearStart = new Date(startDate.getFullYear(), 0, 1);
-          leftPx = differenceInYears(yearStart, firstYearStart) * pixelsPerYear;
+          // Fallback: calculate difference from firstDate
+          const yearStart = startOfYear(feature.startAt);
+          const firstYearStart = startOfYear(firstDate);
+          const yearMonths = eachMonthOfInterval({ start: yearStart, end: endOfYear(feature.startAt) });
+          const monthIndex = yearMonths.findIndex(m => 
+            m.getFullYear() === feature.startAt.getFullYear() && m.getMonth() === feature.startAt.getMonth()
+          );
+          monthOffsetPx = monthIndex >= 0 ? (monthIndex / 12) * pixelsPerYear : 0;
+          leftPx = differenceInYears(yearStart, firstYearStart) * pixelsPerYear + monthOffsetPx;
+        }
+        
+        // Calculate width with end offset
+        let endMonthOffsetPx = 0;
+        if (endIndex >= 0) {
+          const endYearStart = startOfYear(feature.endAt);
+          const endYearMonths = eachMonthOfInterval({ start: endYearStart, end: endOfYear(feature.endAt) });
+          const endMonthIndex = endYearMonths.findIndex(m => 
+            m.getFullYear() === feature.endAt.getFullYear() && m.getMonth() === feature.endAt.getMonth()
+          );
+          endMonthOffsetPx = endMonthIndex >= 0 ? ((endMonthIndex + 1) / 12) * pixelsPerYear : 0; // +1 to include the end month
         }
         
         if (startIndex >= 0 && endIndex >= 0 && endIndex >= startIndex) {
-          // Calculate width based on number of years spanned
-          widthPx = (endIndex - startIndex + 1) * pixelsPerYear;
+          // Calculate width based on number of years spanned, minus start offset, plus end offset
+          const fullYearsWidth = (endIndex - startIndex) * pixelsPerYear;
+          widthPx = fullYearsWidth - monthOffsetPx + endMonthOffsetPx;
         } else if (startIndex >= 0) {
-          // Start found but end not found - use minimum width
-          widthPx = pixelsPerYear;
+          // Start found but end not found - use remaining year width
+          widthPx = pixelsPerYear - monthOffsetPx;
         } else {
           // Fallback to differenceInYears if index not found
-          const yearStart = new Date(feature.startAt.getFullYear(), 0, 1);
-          const yearEnd = new Date(feature.endAt.getFullYear(), 0, 1);
-          widthPx = Math.max(pixelsPerYear, (differenceInYears(yearEnd, yearStart) + 1) * pixelsPerYear);
+          const yearStart = startOfYear(feature.startAt);
+          const yearEnd = startOfYear(feature.endAt);
+          const startYearMonths = eachMonthOfInterval({ start: yearStart, end: endOfYear(feature.startAt) });
+          const endYearMonths = eachMonthOfInterval({ start: yearEnd, end: endOfYear(feature.endAt) });
+          const startMonthIndex = startYearMonths.findIndex(m => 
+            m.getFullYear() === feature.startAt.getFullYear() && m.getMonth() === feature.startAt.getMonth()
+          );
+          const endMonthIndex = endYearMonths.findIndex(m => 
+            m.getFullYear() === feature.endAt.getFullYear() && m.getMonth() === feature.endAt.getMonth()
+          );
+          const startOffsetPx = startMonthIndex >= 0 ? (startMonthIndex / 12) * pixelsPerYear : 0;
+          const endOffsetPx = endMonthIndex >= 0 ? ((endMonthIndex + 1) / 12) * pixelsPerYear : 0;
+          const yearsSpan = differenceInYears(yearEnd, yearStart);
+          widthPx = yearsSpan * pixelsPerYear - startOffsetPx + endOffsetPx;
         }
         break;
       }
@@ -801,14 +975,25 @@ const FeatureBar = React.memo(function FeatureBar({ feature, startDate, pixelsPe
     <GanttTooltip content={tooltipContent}>
       <div
         ref={setNodeRef}
-        style={style}
+        style={{
+          ...style,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          height: '52px',
+        }}
         className={cn(
-          'absolute top-2 left-0 h-11 rounded-lg transition-opacity duration-200 cursor-grab active:cursor-grabbing group',
+          'absolute left-0 rounded-lg transition-opacity duration-200 cursor-grab active:cursor-grabbing group',
           isDragging && 'z-50 opacity-40'
         )}
         data-draggable="true"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          if (onEditItem) {
+            onEditItem(feature.id);
+          }
+        }}
         {...listeners}
         {...attributes}
       >
@@ -1060,9 +1245,10 @@ function FeatureBarOverlay({ feature, startDate, pixelsPerDay }: { feature: Gant
 
   return (
     <div
-      className="h-11 rounded-lg flex items-center px-3 opacity-95 backdrop-blur-xl"
+      className="rounded-lg flex items-center px-3 opacity-95 backdrop-blur-xl"
       style={{
         width: `${width}px`,
+        height: '52px',
         background: getLightColor(statusColor),
         border: `2px solid ${getBorderColor(statusColor)}`,
       }}

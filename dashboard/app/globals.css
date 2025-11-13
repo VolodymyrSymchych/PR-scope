@@ -54,6 +54,10 @@
     --text-tertiary: 0 0% 65%; /* Increased from 60% to 65% for better contrast */
   }
 
+  html {
+    font-size: 90%;
+  }
+
   body {
     background-color: hsl(var(--background));
     background-image:
@@ -436,26 +440,27 @@
   }
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+/* Custom scrollbar - hidden but functional */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
 }
 
-::-webkit-scrollbar-track {
-  background: hsl(var(--surface));
-  transition: background 0.3s var(--ease-smooth-out);
+*::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+  width: 0;
+  height: 0;
+  background: transparent;
 }
 
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
-  border-radius: 5px;
-  transition: background 0.3s var(--ease-smooth-out);
+*::-webkit-scrollbar-track {
+  display: none;
+  background: transparent;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--primary));
-  transition: background 0.2s var(--ease-smooth-out);
+*::-webkit-scrollbar-thumb {
+  display: none;
+  background: transparent;
 }
 
 /* Selection */

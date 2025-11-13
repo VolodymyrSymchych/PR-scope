@@ -47,6 +47,7 @@ export const projects = pgTable('projects', {
   analysisData: text('analysis_data'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
 });
 
 
@@ -204,6 +205,7 @@ export const tasks = pgTable('tasks', {
   progress: integer('progress').default(0).notNull(), // 0-100 percentage
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
 });
 
 
@@ -258,6 +260,7 @@ export const invoices = pgTable('invoices', {
   tokenExpiresAt: timestamp('token_expires_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
 });
 
 export const invoicesRelations = relations(invoices, ({ one }) => ({
@@ -329,6 +332,7 @@ export const fileAttachments: any = pgTable('file_attachments', {
   parentFileId: integer('parent_file_id').references(() => fileAttachments.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
 });
 
 export const fileAttachmentsRelations = relations(fileAttachments, ({ one }) => ({

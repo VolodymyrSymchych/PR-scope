@@ -107,84 +107,84 @@ export default function DocumentationPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-text-primary">Documentation</h1>
-          <p className="text-text-secondary mt-1">
+          <h1 className="text-2xl font-bold gradient-text">Documentation</h1>
+          <p className="text-xs text-text-secondary mt-0.5">
             Create and manage rich text documentation
           </p>
         </div>
         <button
           onClick={() => router.push('/documentation/new')}
-          className="flex items-center space-x-2 px-4 py-2 glass-button text-white rounded-lg"
+          className="flex items-center space-x-2 px-4 py-2 glass-button rounded-lg text-sm font-semibold"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-4 h-4" />
           <span>New Document</span>
         </button>
       </div>
 
       {/* Reports Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {reports.map((report) => (
           <div
             key={report.id}
-            className="glass-medium glass-hover rounded-2xl p-6 cursor-pointer group"
+            className="glass-medium glass-hover rounded-lg p-4 cursor-pointer group"
             onClick={() => router.push(`/documentation/${report.id}`)}
           >
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl glass-light flex items-center justify-center">
-                <FileText className="w-6 h-6 text-[#FF6B4A] drop-" />
+            <div className="flex items-start justify-between mb-3">
+              <div className="w-9 h-9 rounded-lg glass-light flex items-center justify-center">
+                <FileText className="w-5 h-5 text-[#FF6B4A]" />
               </div>
-              <span className={`text-xs px-2 py-1 rounded-full ${getTypeColor(report.type)}`}>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${getTypeColor(report.type)}`}>
                 {getTypeLabel(report.type)}
               </span>
             </div>
 
-            <h3 className="text-lg font-semibold text-text-primary mb-2 group-hover:text-primary transition-colors">
+            <h3 className="text-sm font-semibold text-text-primary mb-2 group-hover:text-primary transition-colors">
               {report.title}
             </h3>
 
             {report.project && (
-              <p className="text-sm text-text-tertiary mb-3">
+              <p className="text-xs text-text-tertiary mb-2">
                 📁 {report.project.name}
               </p>
             )}
 
-            <div className="flex items-center justify-between text-sm text-text-tertiary pt-4 border-t border-white/10">
-              <div className="flex items-center space-x-2">
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-xs font-semibold">
+            <div className="flex items-center justify-between text-xs text-text-tertiary pt-3 border-t border-white/10">
+              <div className="flex items-center space-x-1.5">
+                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-[10px] font-semibold">
                   {report.user?.username?.substring(0, 2).toUpperCase() || 'U'}
                 </div>
-                <span>{report.user?.username || 'Unknown'}</span>
+                <span className="text-[10px]">{report.user?.username || 'Unknown'}</span>
               </div>
-              <span>{formatDate(report.updatedAt)}</span>
+              <span className="text-[10px]">{formatDate(report.updatedAt)}</span>
             </div>
 
-            <div className="flex items-center space-x-2 mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center space-x-1.5 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   router.push(`/documentation/${report.id}`);
                 }}
-                className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/40 transition-colors text-sm"
+                className="flex-1 flex items-center justify-center space-x-1 px-2 py-1.5 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/40 transition-colors text-xs"
               >
-                <Edit className="w-4 h-4" />
+                <Edit className="w-3 h-3" />
                 <span>Edit</span>
               </button>
               <button
                 onClick={(e) => handleExportPDF(report, e)}
-                className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/40 transition-colors text-sm"
+                className="flex-1 flex items-center justify-center space-x-1 px-2 py-1.5 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/40 transition-colors text-xs"
               >
-                <Download className="w-4 h-4" />
+                <Download className="w-3 h-3" />
                 <span>PDF</span>
               </button>
               <button
                 onClick={(e) => handleDelete(report.id, e)}
-                className="p-2 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                className="p-1.5 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-3 h-3" />
               </button>
             </div>
           </div>
@@ -192,12 +192,12 @@ export default function DocumentationPage() {
       </div>
 
       {reports.length === 0 && (
-        <div className="text-center py-12 glass-medium rounded-2xl">
-          <FileText className="w-12 h-12 text-text-tertiary mx-auto mb-3" />
-          <p className="text-text-secondary mb-4">No documentation yet</p>
+        <div className="text-center py-8 glass-medium rounded-lg">
+          <FileText className="w-10 h-10 text-text-tertiary mx-auto mb-2" />
+          <p className="text-sm text-text-secondary mb-3">No documentation yet</p>
           <button
             onClick={() => router.push('/documentation/new')}
-            className="px-4 py-2 glass-button text-white rounded-lg"
+            className="px-3 py-1.5 text-sm glass-button rounded-lg"
           >
             Create Your First Document
           </button>

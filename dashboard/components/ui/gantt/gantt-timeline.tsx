@@ -8,11 +8,13 @@ import { differenceInDays, startOfWeek, endOfWeek } from 'date-fns';
 interface ScrollSyncContextValue {
   headerScrollRef: React.RefObject<HTMLDivElement> | null;
   contentScrollRef: React.RefObject<HTMLDivElement> | null;
+  sidebarScrollRef: React.RefObject<HTMLDivElement> | null;
 }
 
 const ScrollSyncContext = createContext<ScrollSyncContextValue>({
   headerScrollRef: null,
   contentScrollRef: null,
+  sidebarScrollRef: null,
 });
 
 export function useScrollSync() {
@@ -27,9 +29,10 @@ interface GanttTimelineProps {
 export function GanttTimeline({ children, className }: GanttTimelineProps) {
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const contentScrollRef = useRef<HTMLDivElement>(null);
+  const sidebarScrollRef = useRef<HTMLDivElement>(null);
 
   return (
-    <ScrollSyncContext.Provider value={{ headerScrollRef, contentScrollRef }}>
+    <ScrollSyncContext.Provider value={{ headerScrollRef, contentScrollRef, sidebarScrollRef }}>
       <div className={cn('flex-1 flex flex-col bg-transparent min-w-0 min-h-0', className)}>
         {children}
       </div>
@@ -43,7 +46,7 @@ interface GanttFeatureListProps {
 }
 
 export function GanttFeatureList({ children, className }: GanttFeatureListProps) {
-  const { headerScrollRef, contentScrollRef } = useScrollSync();
+  const { headerScrollRef, contentScrollRef, sidebarScrollRef } = useScrollSync();
   const { extendRange, pixelsPerDay, pixelsPerWeek, pixelsPerMonth, pixelsPerQuarter, pixelsPerYear, viewMode, firstDate, baseStartDate, baseEndDate, days, weeks, months, quarters, years } = useGantt();
   const rangeRef = useRef(viewMode);
   const [showLeftButton, setShowLeftButton] = React.useState(false);
@@ -78,8 +81,9 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
           (viewMode === 'months' && months.length === 0) ||
           (viewMode === 'quarters' && quarters.length === 0) ||
           (viewMode === 'years' && years.length === 0)) {
-        // Retry after a delay if content not ready
-        setTimeout(() => scrollToCurrentDate(isInitial), 150);
+        // Retry after a delay if content not ready (shorter delay for daily view)
+        const retryDelay = viewMode === 'days' ? 50 : 150;
+        setTimeout(() => scrollToCurrentDate(isInitial), retryDelay);
         return;
       }
 
@@ -226,10 +230,11 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
 
     // Only scroll if view mode changed or initial load
     if (shouldScroll) {
-      // Scroll to current date on initial load or view mode change (reduced delay since dates load faster now)
+      // Scroll to current date on initial load or view mode change (shorter delay for daily view)
+      const initialDelay = viewMode === 'days' ? 50 : 100;
       const timeoutId = setTimeout(() => {
         scrollToCurrentDate(true);
-      }, 100); // Reduced delay since daily view is now optimized
+      }, initialDelay);
 
       return () => {
         clearTimeout(timeoutId);
@@ -281,7 +286,7 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
     let addedPixels: number;
     switch (viewMode) {
       case 'days':
-        extendAmount = 30; // 1 month
+        extendAmount = 14; // 2 weeks
         addedPixels = extendAmount * pixelsPerDay;
         break;
       case 'weeks':
@@ -301,7 +306,7 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
         addedPixels = extendAmount * pixelsPerYear;
         break;
       default:
-        extendAmount = 30;
+        extendAmount = 14;
         addedPixels = extendAmount * pixelsPerDay;
     }
     
@@ -326,7 +331,7 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
     let extendAmount: number;
     switch (viewMode) {
       case 'days':
-        extendAmount = 30; // 1 month
+        extendAmount = 14; // 2 weeks
         break;
       case 'weeks':
         extendAmount = 52; // 1 year
@@ -341,7 +346,7 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
         extendAmount = 5; // 5 years
         break;
       default:
-        extendAmount = 30;
+        extendAmount = 14;
     }
     
     extendRange('right', extendAmount);
@@ -355,6 +360,7 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
 
     let ticking = false;
     let headerTicking = false;
+    let sidebarTicking = false;
     let isSyncing = false; // Prevent infinite loop
 
     // Handle header scroll - sync to content
@@ -370,6 +376,23 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
           headerTicking = false;
         });
         headerTicking = true;
+      }
+    };
+
+    // Handle sidebar scroll - sync to content
+    const handleSidebarScroll = () => {
+      const currentSidebarEl = sidebarScrollRef?.current;
+      if (isSyncing || !currentSidebarEl) return; // Prevent infinite loop
+      
+      if (!sidebarTicking) {
+        requestAnimationFrame(() => {
+          // Sync content vertical scroll to sidebar scroll
+          isSyncing = true;
+          contentEl.scrollTop = currentSidebarEl.scrollTop;
+          isSyncing = false;
+          sidebarTicking = false;
+        });
+        sidebarTicking = true;
       }
     };
 
@@ -393,9 +416,16 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
       
       if (!ticking) {
         requestAnimationFrame(() => {
-          // Sync header scroll - this is fast and should happen every frame
+          // Sync header horizontal scroll
           isSyncing = true;
           headerEl.scrollLeft = contentEl.scrollLeft;
+          
+          // Sync sidebar vertical scroll with content vertical scroll
+          const currentSidebarEl = sidebarScrollRef?.current;
+          if (currentSidebarEl) {
+            currentSidebarEl.scrollTop = contentEl.scrollTop;
+          }
+          
           isSyncing = false;
           
           // Update extension button visibility based on scroll position
@@ -414,20 +444,51 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
     // Use passive listener for better performance
     contentEl.addEventListener('scroll', handleContentScroll, { passive: true });
     headerEl.addEventListener('scroll', handleHeaderScroll, { passive: true });
+    
+    // Add sidebar scroll listener - check periodically if sidebar is ready
+    let sidebarListenerAdded = false;
+    const addSidebarListener = () => {
+      const currentSidebarEl = sidebarScrollRef?.current;
+      if (currentSidebarEl && !sidebarListenerAdded) {
+        currentSidebarEl.addEventListener('scroll', handleSidebarScroll, { passive: true });
+        sidebarListenerAdded = true;
+        return true;
+      }
+      return sidebarListenerAdded;
+    };
+
+    // Try to add sidebar listener immediately
+    addSidebarListener();
+    
+    // If sidebar not ready, try again after delays
+    const timeoutIds: NodeJS.Timeout[] = [];
+    [10, 50, 100, 200, 500].forEach(delay => {
+      const timeoutId = setTimeout(() => {
+        if (!sidebarListenerAdded) {
+          addSidebarListener();
+        }
+      }, delay);
+      timeoutIds.push(timeoutId);
+    });
 
     return () => {
+      timeoutIds.forEach(id => clearTimeout(id));
       contentEl.removeEventListener('scroll', handleContentScroll);
       headerEl.removeEventListener('scroll', handleHeaderScroll);
+      const currentSidebarEl = sidebarScrollRef?.current;
+      if (currentSidebarEl) {
+        currentSidebarEl.removeEventListener('scroll', handleSidebarScroll);
+      }
     };
-  }, [headerScrollRef, contentScrollRef, extendRange, viewMode, pixelsPerDay, pixelsPerWeek, pixelsPerMonth, pixelsPerQuarter, pixelsPerYear, setShowLeftButton, setShowRightButton]);
+  }, [headerScrollRef, contentScrollRef, sidebarScrollRef, extendRange, viewMode, pixelsPerDay, pixelsPerWeek, pixelsPerMonth, pixelsPerQuarter, pixelsPerYear, setShowLeftButton, setShowRightButton]);
 
 
   return (
     <div
       ref={contentScrollRef}
       className={cn('flex-1 overflow-auto gantt-scrollbar relative min-h-0 min-w-0', className)}
-      style={{ 
-        overflowX: 'auto', 
+      style={{
+        overflowX: 'auto',
         overflowY: 'auto',
         maxHeight: '100%',
         height: '100%',
@@ -435,7 +496,9 @@ export function GanttFeatureList({ children, className }: GanttFeatureListProps)
         width: '100%',
       }}
     >
-      {children}
+      <div style={{ paddingBottom: '16px' }}>
+        {children}
+      </div>
       {/* Loading indicator when extending range */}
       <RangeExtensionIndicator />
       {/* Extension buttons at edges - positioned relative to container */}

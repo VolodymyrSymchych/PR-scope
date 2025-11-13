@@ -6,18 +6,17 @@ import { Plus, BarChart3 } from 'lucide-react';
 import {
   GanttProvider,
   GanttSidebar,
-  GanttSidebarGroup,
   GanttSidebarItem,
   GanttTimeline,
   GanttHeader,
   GanttFeatureList,
-  GanttFeatureListGroup,
   GanttFeatureRow,
   GanttToday,
   GanttDependencyLines,
   type GanttFeature,
 } from '@/components/ui/gantt';
 import { AddTaskModal } from '@/components/AddTaskModal';
+import { EditTaskModal } from '@/components/EditTaskModal';
 
 interface TaskData {
   id: number;
@@ -36,6 +35,9 @@ interface Project {
   id: number;
   name: string;
   color?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  status?: string;
 }
 
 interface GanttChartViewProps {
@@ -62,15 +64,17 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [parentTaskId, setParentTaskId] = useState<number | undefined>(undefined);
+  const [editingTask, setEditingTask] = useState<any | null>(null);
 
   // View controls
   const [zoom] = useState(100);
   const [viewRange, setViewRange] = useState<ViewRange>('monthly');
   const [ganttType, setGanttType] = useState<GanttType>('tasks');
+  const [selectedProjectId, setSelectedProjectId] = useState<number | 'all'>('all');
 
   useEffect(() => {
     fetchData();
-  }, [projectId]);
+  }, [ganttType]);
 
   // Function to change view range with loading
   const handleViewRangeChange = (newRange: ViewRange) => {
@@ -94,18 +98,20 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
     setTypeChanging(true);
     setGanttType(newType);
 
-    // Use startTransition for non-urgent state updates
-    startTransition(() => {
-      setTypeChanging(false);
+    // Reload data when switching types
+    fetchData().finally(() => {
+      startTransition(() => {
+        setTypeChanging(false);
+      });
     });
   };
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const url = projectId ? `/api/tasks?project_id=${projectId}` : '/api/tasks';
+      // Always fetch all tasks and projects
       const [tasksResponse, projectsResponse] = await Promise.all([
-        axios.get(url),
+        axios.get('/api/tasks'),
         axios.get('/api/projects')
       ]);
 
@@ -120,9 +126,20 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
   };
 
   // Transform tasks to GanttFeature format
-  const features: GanttFeature[] = useMemo(() => {
+  const taskFeatures: GanttFeature[] = useMemo(() => {
     return tasks
-      .filter(task => task.startDate && task.dueDate)
+      .filter(task => {
+        // Filter by selected project if not 'all'
+        if (selectedProjectId !== 'all') {
+          // Convert both to numbers for comparison
+          const taskProjectId = task.projectId ? Number(task.projectId) : null;
+          const selectedId = Number(selectedProjectId);
+          if (taskProjectId !== selectedId) {
+            return false;
+          }
+        }
+        return task.startDate && task.dueDate;
+      })
       .map(task => {
         // Check if task title contains "test" (case-insensitive) for purple color
         const isTestTask = task.title?.toLowerCase().includes('test');
@@ -147,42 +164,77 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
           },
         };
       });
-  }, [tasks]);
+  }, [tasks, selectedProjectId]);
 
-  // Memoize filtered features to prevent unnecessary recalculations
+  // Transform projects to GanttFeature format
+  const projectFeatures: GanttFeature[] = useMemo(() => {
+    return projects
+      .filter(project => {
+        // Support both camelCase and snake_case field names
+        const startDate = (project as any).startDate || (project as any).start_date;
+        const endDate = (project as any).endDate || (project as any).end_date;
+        return startDate && endDate;
+      })
+      .map(project => {
+        // Support both camelCase and snake_case field names
+        const startDate = (project as any).startDate || (project as any).start_date;
+        const endDate = (project as any).endDate || (project as any).end_date;
+        const status = (project as any).status || 'todo';
+        
+        return {
+          id: `project-${project.id}`,
+          name: project.name,
+          startAt: new Date(startDate),
+          endAt: new Date(endDate),
+          status: statusMap[status?.toLowerCase() || 'todo'] || statusMap.todo,
+          lane: 'projects',
+          metadata: {
+            project,
+            type: 'project',
+          },
+        };
+      });
+  }, [projects]);
+
+  // Select features based on gantt type
   const displayFeatures = useMemo(() => {
-    return ganttType === 'projects'
-      ? features.filter(f => !f.parentId) // Show only parent tasks (top-level)
-      : features; // Show all tasks
-  }, [features, ganttType]);
+    return ganttType === 'projects' ? projectFeatures : taskFeatures;
+  }, [ganttType, projectFeatures, taskFeatures]);
 
-  // Group features by project (lane)
-  const groupedFeatures = useMemo(() => {
-    const byProject: Record<string, GanttFeature[]> = {};
-    displayFeatures.forEach(feature => {
-      const lane = feature.lane || 'default';
-      if (!byProject[lane]) {
-        byProject[lane] = [];
-      }
-      byProject[lane].push(feature);
-    });
+  // Use displayFeatures for features variable for compatibility
+  const features = displayFeatures;
 
-    return Object.entries(byProject).map(([projectId, projectFeatures]) => {
-      const project = projects.find(p => p.id.toString() === projectId);
-      const defaultName = ganttType === 'projects'
-        ? (projectId === 'default' ? 'Uncategorized Projects' : 'Projects')
-        : (projectId === 'default' ? 'Uncategorized Tasks' : 'Tasks');
-
-      return {
-        projectId,
-        features: projectFeatures,
-        groupName: project?.name || defaultName,
-      };
-    });
-  }, [displayFeatures, projects, ganttType]);
+  // For tasks view: show all tasks without grouping by project
+  // For projects view: show all projects
+  const displayTasks = useMemo(() => {
+    if (ganttType === 'projects') {
+      return displayFeatures;
+    } else {
+      // Just return all filtered tasks without grouping
+      return displayFeatures;
+    }
+  }, [displayFeatures, ganttType]);
 
   const handleMoveTask = async (id: string, startAt: Date, endAt: Date | null, shiftSubtasks = false) => {
     if (!endAt || readOnly) return;
+
+    // Check if this is a project (starts with "project-")
+    if (id.startsWith('project-')) {
+      const projectId = parseInt(id.replace('project-', ''));
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+
+      try {
+        await axios.put(`/api/projects/${projectId}`, {
+          start_date: startAt.toISOString().split('T')[0],
+          end_date: endAt.toISOString().split('T')[0],
+        });
+        await fetchData();
+      } catch (error) {
+        console.error('Failed to update project:', error);
+      }
+      return;
+    }
 
     const task = tasks.find(t => t.id.toString() === id);
     if (!task) return;
@@ -227,6 +279,24 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
   const handleResizeTask = async (id: string, startAt: Date, endAt: Date) => {
     if (readOnly) return;
 
+    // Check if this is a project (starts with "project-")
+    if (id.startsWith('project-')) {
+      const projectId = parseInt(id.replace('project-', ''));
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+
+      try {
+        await axios.put(`/api/projects/${projectId}`, {
+          start_date: startAt.toISOString().split('T')[0],
+          end_date: endAt.toISOString().split('T')[0],
+        });
+        await fetchData();
+      } catch (error) {
+        console.error('Failed to resize project:', error);
+      }
+      return;
+    }
+
     console.log('📏 Resizing task:', id, 'from', startAt, 'to', endAt);
 
     try {
@@ -269,6 +339,31 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
     console.log('View task:', id);
   };
 
+  const handleEditTask = (taskId: string) => {
+    // Only edit tasks, not projects
+    if (taskId.startsWith('project-')) {
+      return;
+    }
+    
+    // Find task by ID
+    const task = tasks.find(t => t.id.toString() === taskId);
+    if (task) {
+      // Convert task to EditTaskModal format
+      setEditingTask({
+        id: task.id,
+        title: task.title,
+        description: (task as any).description || '',
+        project_id: task.projectId,
+        assignee: (task as any).assignee || '',
+        start_date: task.startDate,
+        due_date: task.dueDate,
+        end_date: task.endDate,
+        priority: (task as any).priority || 'medium',
+        status: task.status || 'todo',
+      });
+    }
+  };
+
   const handleAddSubtask = (parentId: string) => {
     setParentTaskId(parseInt(parentId));
     setShowAddTaskModal(true);
@@ -286,7 +381,7 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
     );
   }
 
-  if (features.length === 0) {
+  if (displayFeatures.length === 0) {
     return (
       <div className="relative glass-medium rounded-2xl p-16 border border-white/10 text-center overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 pointer-events-none"></div>
@@ -295,19 +390,14 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
           <div className="relative w-20 h-20 mx-auto mb-6 rounded-2xl glass-light flex items-center justify-center border border-white/10">
             <BarChart3 className="w-10 h-10 text-primary" />
           </div>
-          <h3 className="text-2xl font-bold text-text-primary mb-3">No Tasks Available</h3>
+          <h3 className="text-2xl font-bold text-text-primary mb-3">
+            {ganttType === 'projects' ? 'No Projects Available' : 'No Tasks Available'}
+          </h3>
           <p className="text-text-tertiary text-sm max-w-md mx-auto mb-6">
-            Add start and due dates to tasks to visualize them on the Gantt chart. The timeline helps you understand project schedules and track progress.
+            {ganttType === 'projects' 
+              ? 'Add start and end dates to projects to visualize them on the Gantt chart.'
+              : 'Add start and due dates to tasks to visualize them on the Gantt chart. The timeline helps you understand project schedules and track progress.'}
           </p>
-          {!readOnly && (
-            <button
-              onClick={() => setShowAddTaskModal(true)}
-              className="inline-flex items-center space-x-2 px-6 py-3 glass-button rounded-xl text-white border border-primary/30 hover: hover:shadow-primary/20 transition-all duration-200"
-            >
-              <Plus className="w-5 h-5" />
-              <span>Create Your First Task</span>
-            </button>
-          )}
         </div>
       </div>
     );
@@ -317,32 +407,54 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
     <div className="w-full h-full flex flex-col min-h-0 max-h-full min-w-0 max-w-full overflow-hidden">
       {/* View Controls */}
       <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 flex-shrink-0">
-        {/* Gantt Type Selector - Left */}
-        <div className="flex items-center gap-1 glass-medium rounded-xl p-1 border border-white/10 overflow-x-auto">
-          <button
-            onClick={() => handleGanttTypeChange('tasks')}
-            aria-label="View all tasks"
-            aria-pressed={ganttType === 'tasks'}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-              ganttType === 'tasks'
-                ? 'bg-primary/30 text-white border border-primary/50'
-                : 'text-white/60 hover:text-white/80 hover:bg-white/5'
-            }`}
-          >
-            Tasks
-          </button>
-          <button
-            onClick={() => handleGanttTypeChange('projects')}
-            aria-label="View projects only"
-            aria-pressed={ganttType === 'projects'}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-              ganttType === 'projects'
-                ? 'bg-primary/30 text-white border border-primary/50'
-                : 'text-white/60 hover:text-white/80 hover:bg-white/5'
-            }`}
-          >
-            Projects
-          </button>
+        {/* Type Selector and Project Filter - Left */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 glass-medium rounded-xl p-1 border border-white/10 overflow-x-auto">
+            <button
+              onClick={() => handleGanttTypeChange('tasks')}
+              aria-label="View tasks only"
+              aria-pressed={ganttType === 'tasks'}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                ganttType === 'tasks'
+                  ? 'bg-primary/30 text-white border border-primary/50'
+                  : 'text-white/60 hover:text-white/80 hover:bg-white/5'
+              }`}
+            >
+              Tasks
+            </button>
+            <button
+              onClick={() => handleGanttTypeChange('projects')}
+              aria-label="View projects only"
+              aria-pressed={ganttType === 'projects'}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                ganttType === 'projects'
+                  ? 'bg-primary/30 text-white border border-primary/50'
+                  : 'text-white/60 hover:text-white/80 hover:bg-white/5'
+              }`}
+            >
+              Projects
+            </button>
+          </div>
+          
+          {/* Project Filter - only show when viewing tasks */}
+          {ganttType === 'tasks' && (
+            <select
+              value={selectedProjectId}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSelectedProjectId(value === 'all' ? 'all' : Number(value));
+              }}
+              className="glass-medium rounded-lg px-3 py-2 text-sm font-medium text-white border border-white/10 hover:border-white/20 focus:border-primary/50 focus:outline-none transition-all duration-200 cursor-pointer bg-black/20 backdrop-blur-sm"
+              aria-label="Select project"
+            >
+              <option value="all" className="bg-black/90 text-white">All Projects</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id} className="bg-black/90 text-white">
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* View Range Selector - Right */}
@@ -444,57 +556,36 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
             onAddItem={handleAddTask}
           >
             <GanttSidebar ganttType={ganttType}>
-              {groupedFeatures.map(({ groupName, features: groupFeatures }) => (
-                <GanttSidebarGroup key={groupName} name={groupName}>
-                  {groupFeatures.map((feature) => (
-                    <GanttSidebarItem
-                      key={feature.id}
-                      feature={feature}
-                      onSelectItem={() => handleViewTask(feature.id)}
-                      onAddSubtask={handleAddSubtask}
-                    />
-                  ))}
-                </GanttSidebarGroup>
+              {displayTasks.map((feature) => (
+                <GanttSidebarItem
+                  key={feature.id}
+                  feature={feature}
+                  onSelectItem={() => handleViewTask(feature.id)}
+                  onEditItem={() => handleEditTask(feature.id)}
+                  onAddSubtask={handleAddSubtask}
+                />
               ))}
             </GanttSidebar>
 
             <GanttTimeline>
               <GanttHeader />
               <GanttFeatureList>
-                {groupedFeatures.map(({ groupName, features: groupFeatures }) => {
-                  // Group features by row (non-overlapping)
-                  const rows: GanttFeature[][] = [];
-                  groupFeatures.forEach(feature => {
-                    let placed = false;
-                    for (let i = 0; i < rows.length; i++) {
-                      const canPlace = rows[i].every(existing => {
-                        return (
-                          feature.endAt < existing.startAt ||
-                          feature.startAt > existing.endAt
-                        );
-                      });
-                      if (canPlace) {
-                        rows[i].push(feature);
-                        placed = true;
-                        break;
-                      }
-                    }
-                    if (!placed) {
-                      rows.push([feature]);
-                    }
-                  });
+                {(() => {
+                  // Each task gets its own row - no grouping
+                  const rows: GanttFeature[][] = displayTasks.map(feature => [feature]);
 
                   return (
-                    <GanttFeatureListGroup key={groupName}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
                       {rows.map((rowFeatures, rowIdx) => (
                         <GanttFeatureRow
-                          key={`${groupName}-row-${rowIdx}`}
+                          key={`task-row-${rowIdx}`}
                           features={rowFeatures}
                           onMove={handleMoveTask}
                           onResize={handleResizeTask}
+                          onEditItem={handleEditTask}
                         >
                           {(taskFeature) => (
-                            <div className="flex items-center gap-2 w-full px-3 py-1">
+                            <div className="flex items-center gap-2 w-full px-3 h-full">
                               <div className="flex-1 min-w-0">
                                 <p className="truncate text-xs font-medium text-white/95">{taskFeature.name}</p>
                                 {taskFeature.metadata?.progress > 0 && (
@@ -515,9 +606,9 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
                           )}
                         </GanttFeatureRow>
                       ))}
-                    </GanttFeatureListGroup>
+                    </div>
                   );
-                })}
+                })()}
                 {/* Dependency lines connecting tasks */}
                 <GanttDependencyLines features={features} />
 
@@ -569,6 +660,17 @@ export function GanttChartView({ projectId, readOnly = false }: GanttChartViewPr
         initialDate={selectedDate}
         projectId={projectId}
         parentTaskId={parentTaskId}
+      />
+
+      {/* Edit Task Modal */}
+      <EditTaskModal
+        task={editingTask}
+        isOpen={!!editingTask}
+        onClose={() => setEditingTask(null)}
+        onSave={() => {
+          fetchData();
+          setEditingTask(null);
+        }}
       />
     </div>
   );

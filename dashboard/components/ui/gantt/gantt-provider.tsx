@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useMemo, useRef, ReactNode, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useMemo, useRef, ReactNode, useCallback, useEffect, startTransition } from 'react';
 import { startOfMonth, endOfMonth, eachDayOfInterval, eachMonthOfInterval, eachWeekOfInterval, eachYearOfInterval, eachQuarterOfInterval, addDays, addMonths, addWeeks, addQuarters, addYears, startOfWeek, endOfWeek, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from 'date-fns';
 
 export interface GanttFeature {
@@ -100,8 +100,8 @@ export function GanttProvider({
     switch (viewRange) {
       case 'daily':
         return {
-          start: addDays(currentDate, -30), // ±1 month
-          end: addDays(currentDate, 30)
+          start: addDays(currentDate, -14), // ±2 weeks (reduced from ±1 month for better performance)
+          end: addDays(currentDate, 14)
         };
       case 'weekly':
         return {
@@ -151,8 +151,8 @@ export function GanttProvider({
   useEffect(() => {
     const currentDate = new Date();
     const commonRanges = [
-      // Days: ±1 month
-      { mode: 'days', start: addDays(currentDate, -30), end: addDays(currentDate, 30) },
+      // Days: ±2 weeks (reduced for better performance)
+      { mode: 'days', start: addDays(currentDate, -14), end: addDays(currentDate, 14) },
       // Weeks: ±1 year
       { mode: 'weeks', start: startOfWeek(addWeeks(currentDate, -52), { weekStartsOn: 1 }), end: endOfWeek(addWeeks(currentDate, 52), { weekStartsOn: 1 }) },
       // Months: ±2 years
@@ -202,14 +202,38 @@ export function GanttProvider({
   }, []);
   
   // Reset range when view mode changes - ensure current date is included
+  // Use startTransition for non-urgent updates to prevent blocking UI
   useEffect(() => {
     const { start: newStart, end: newEnd } = getInitialRange(range);
 
-    const clampedStart = newStart < baseStartDate ? baseStartDate : newStart;
-    const clampedEnd = newEnd > baseEndDate ? baseEndDate : newEnd;
+    // For daily view, ensure we don't generate too many days
+    let clampedStart = newStart < baseStartDate ? baseStartDate : newStart;
+    let clampedEnd = newEnd > baseEndDate ? baseEndDate : newEnd;
+    
+    if (range === 'daily') {
+      // Safety check: limit daily view to ±14 days from current date
+      const currentDate = new Date();
+      const maxDaysDiff = 14;
+      const daysFromStart = Math.ceil((currentDate.getTime() - clampedStart.getTime()) / (1000 * 60 * 60 * 24));
+      const daysToEnd = Math.ceil((clampedEnd.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // If range is too large, limit it to ±14 days from current date
+      if (daysFromStart > maxDaysDiff || daysToEnd > maxDaysDiff) {
+        clampedStart = addDays(currentDate, -maxDaysDiff);
+        clampedEnd = addDays(currentDate, maxDaysDiff);
+      }
+    }
 
-    setDateRangeStart(clampedStart);
-    setDateRangeEnd(clampedEnd);
+    // Use startTransition for daily view to prevent blocking
+    if (range === 'daily') {
+      startTransition(() => {
+        setDateRangeStart(clampedStart);
+        setDateRangeEnd(clampedEnd);
+      });
+    } else {
+      setDateRangeStart(clampedStart);
+      setDateRangeEnd(clampedEnd);
+    }
   }, [range, getInitialRange, baseStartDate, baseEndDate]);
   
   // Determine view mode based on range
@@ -258,11 +282,36 @@ export function GanttProvider({
     }
     
     // Calculate dates for the current view mode
+    // Optimize daily view by using a more efficient date generation
     let calculatedDates: Date[];
     switch (viewMode) {
-      case 'days':
-        calculatedDates = eachDayOfInterval({ start, end });
+      case 'days': {
+        // Generate days manually (faster for small ranges)
+        // Safety check: limit to reasonable range to prevent performance issues
+        const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        let actualStart = start;
+        let actualEnd = end;
+        
+        // If range is too large (more than 100 days), limit to ±50 days from current date
+        // This prevents performance issues while still allowing reasonable extension
+        if (daysDiff > 100) {
+          const currentDate = new Date();
+          actualStart = addDays(currentDate, -50);
+          actualEnd = addDays(currentDate, 50);
+          console.warn(`[GanttProvider] Daily view range too large (${daysDiff} days), limiting to ±50 days from current date`);
+        }
+        
+        calculatedDates = [];
+        const current = new Date(actualStart);
+        current.setHours(0, 0, 0, 0);
+        const endDate = new Date(actualEnd);
+        endDate.setHours(23, 59, 59, 999);
+        while (current <= endDate) {
+          calculatedDates.push(new Date(current));
+          current.setDate(current.getDate() + 1);
+        }
         break;
+      }
       case 'weeks':
         calculatedDates = eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
         break;
@@ -391,7 +440,11 @@ export function GanttProvider({
   const startDate = baseStartDate;
   const endDate = baseEndDate;
 
-  const pixelsPerDay = (zoom / 100) * 40;
+  // Calculate pixels per day - make it larger for daily view to fill screen
+  // For daily view with ±14 days (28 days total), use larger cells to fill screen
+  const pixelsPerDay = viewMode === 'days' 
+    ? (zoom / 100) * 120  // Larger cells for daily view to fill screen
+    : (zoom / 100) * 40;  // Normal size for other views
   const pixelsPerWeek = (zoom / 100) * 100;
   const pixelsPerMonth = (zoom / 100) * 120;
   const pixelsPerQuarter = (zoom / 100) * 180;

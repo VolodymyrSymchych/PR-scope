@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Calendar, Edit } from 'lucide-react';
+import { Plus, Calendar, Edit, Trash2, ArrowUpDown } from 'lucide-react';
 import axios from 'axios';
 import { Task } from '@/lib/tasks-api';
 import {
@@ -23,6 +23,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { EditTaskModal } from '@/components/EditTaskModal';
+import { DeleteConfirmModal } from '@/components/DeleteConfirmModal';
 
 interface Project {
   id: number;
@@ -36,6 +37,11 @@ export default function TasksPage() {
   const [showNewTaskForm, setShowNewTaskForm] = useState(false);
   const [editingTask, setEditingTask] = useState<any | null>(null);
   const [activeId, setActiveId] = useState<number | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; task: any | null }>({
+    isOpen: false,
+    task: null,
+  });
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
@@ -69,10 +75,23 @@ export default function TasksPage() {
 
   const loadTasks = async () => {
     try {
+      setLoading(true);
       const response = await axios.get('/api/tasks');
-      setTasks(response.data.tasks);
-    } catch (error) {
+      console.log('API Response:', response.data);
+      const tasksData = response.data?.tasks || [];
+      console.log('Loaded tasks count:', tasksData.length);
+      console.log('Tasks data:', tasksData);
+      if (Array.isArray(tasksData)) {
+        setTasks(tasksData);
+      } else {
+        console.error('Tasks data is not an array:', tasksData);
+        setTasks([]);
+      }
+    } catch (error: any) {
       console.error('Failed to load tasks:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      setTasks([]);
     } finally {
       setLoading(false);
     }
@@ -115,6 +134,30 @@ export default function TasksPage() {
       loadTasks();
     } catch (error) {
       console.error('Failed to update task:', error);
+    }
+  };
+
+  const toggleSortOrder = () => {
+    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+  };
+
+  const deleteTask = async (taskId: number) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      setDeleteModal({ isOpen: true, task });
+    }
+  };
+
+  const confirmDeleteTask = async () => {
+    if (!deleteModal.task) return;
+
+    try {
+      await axios.delete(`/api/tasks/${deleteModal.task.id}`);
+      setDeleteModal({ isOpen: false, task: null });
+      loadTasks();
+    } catch (error: any) {
+      console.error('Failed to delete task:', error);
+      alert(error.response?.data?.error || 'Failed to delete task. Please try again.');
     }
   };
 
@@ -171,9 +214,44 @@ export default function TasksPage() {
     }
   };
 
-  const todoTasks = tasks.filter(t => t.status === 'todo' || t.status === 'Todo');
-  const inProgressTasks = tasks.filter(t => t.status === 'in_progress' || t.status === 'In Progress');
-  const doneTasks = tasks.filter(t => t.status === 'done' || t.status === 'Done');
+  // Sort tasks by name (title) within each status
+  const sortTasksByName = (taskList: any[]) => {
+    if (!Array.isArray(taskList) || taskList.length === 0) return [];
+    return [...taskList].sort((a, b) => {
+      const aTitle = (a.title || '').toLowerCase();
+      const bTitle = (b.title || '').toLowerCase();
+      if (sortOrder === 'asc') {
+        return aTitle.localeCompare(bTitle);
+      } else {
+        return bTitle.localeCompare(aTitle);
+      }
+    });
+  };
+
+  // Filter and sort tasks by status
+  const todoTasks = sortTasksByName(tasks.filter(t => {
+    if (!t) return false;
+    const status = String(t.status || '').toLowerCase().trim();
+    return status === 'todo' || status === 'to do' || status === '';
+  }));
+  const inProgressTasks = sortTasksByName(tasks.filter(t => {
+    if (!t) return false;
+    const status = String(t.status || '').toLowerCase().trim();
+    return status === 'in_progress' || status === 'in progress';
+  }));
+  const doneTasks = sortTasksByName(tasks.filter(t => {
+    if (!t) return false;
+    const status = String(t.status || '').toLowerCase().trim();
+    return status === 'done';
+  }));
+
+  // Debug logging
+  useEffect(() => {
+    console.log('Total tasks:', tasks.length);
+    console.log('Todo tasks:', todoTasks.length);
+    console.log('In Progress tasks:', inProgressTasks.length);
+    console.log('Done tasks:', doneTasks.length);
+  }, [tasks, todoTasks, inProgressTasks, doneTasks]);
 
   if (loading) {
     return (
@@ -183,31 +261,185 @@ export default function TasksPage() {
     );
   }
 
+  // Show message if no tasks at all
+  if (!loading && tasks.length === 0) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-text-primary">Tasks</h1>
-          <p className="text-text-secondary mt-1">
+          <h1 className="text-2xl font-bold text-text-primary">Tasks</h1>
+          <p className="text-xs text-text-secondary mt-0.5">
             Manage and track your tasks
           </p>
         </div>
         <button
           onClick={() => setShowNewTaskForm(!showNewTaskForm)}
-          className="flex items-center space-x-2 px-4 py-2 bg-primary text-white rounded-lg hover:opacity-90 transition-colors"
+          className="flex items-center space-x-2 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:opacity-90 transition-colors"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-4 h-4" />
           <span>New Task</span>
         </button>
+        </div>
+
+        {/* No tasks message */}
+        <div className="glass-medium rounded-xl p-8 border border-white/10 text-center">
+          <p className="text-text-secondary mb-4">No tasks found</p>
+          <p className="text-xs text-text-tertiary mb-4">
+            Create your first task to get started
+          </p>
+          {!showNewTaskForm && (
+            <button
+              onClick={() => setShowNewTaskForm(true)}
+              className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:opacity-90 transition-colors"
+            >
+              Create Task
+            </button>
+          )}
+        </div>
+
+        {/* New Task Form */}
+        {showNewTaskForm && (
+          <div className="glass-medium rounded-xl p-4 border border-white/10">
+            <form onSubmit={createTask} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-text-primary mb-1.5">
+                  Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newTask.title}
+                  onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                  className="w-full px-3 py-2 text-sm rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-primary mb-1.5">
+                  Description
+                </label>
+                <textarea
+                  rows={2}
+                  value={newTask.description}
+                  onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                  className="w-full px-3 py-2 text-sm rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-text-primary mb-1.5">
+                    Project
+                  </label>
+                  <select
+                    value={newTask.project_id}
+                    onChange={(e) => setNewTask({ ...newTask, project_id: e.target.value })}
+                    className="w-full px-3 py-2 text-sm rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="">No Project</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-text-primary mb-1.5">
+                    Priority
+                  </label>
+                  <select
+                    value={newTask.priority}
+                    onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as any })}
+                    className="w-full px-3 py-2 text-sm rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-text-primary mb-1.5">
+                    Assignee
+                  </label>
+                  <input
+                    type="text"
+                    value={newTask.assignee}
+                    onChange={(e) => setNewTask({ ...newTask, assignee: e.target.value })}
+                    className="w-full px-3 py-2 text-sm rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="Initials (e.g., AR)"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-text-primary mb-1.5">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={newTask.due_date}
+                    onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
+                    className="w-full px-3 py-2 text-sm rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNewTaskForm(false)}
+                  className="px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:opacity-90 transition-colors"
+                >
+                  Create Task
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-text-primary">Tasks</h1>
+          <p className="text-xs text-text-secondary mt-0.5">
+            Manage and track your tasks
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleSortOrder}
+            className="flex items-center space-x-2 px-3 py-1.5 text-sm glass-medium border border-white/10 rounded-lg hover:glass-light transition-colors"
+            title={`Sort by name ${sortOrder === 'asc' ? 'A-Z' : 'Z-A'}`}
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            <span className="text-xs">{sortOrder === 'asc' ? 'A-Z' : 'Z-A'}</span>
+          </button>
+          <button
+            onClick={() => setShowNewTaskForm(!showNewTaskForm)}
+            className="flex items-center space-x-2 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:opacity-90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Task</span>
+          </button>
+        </div>
       </div>
 
       {/* New Task Form */}
       {showNewTaskForm && (
-        <div className="glass-medium rounded-2xl p-6 border border-white/10">
-          <form onSubmit={createTask} className="space-y-4">
+        <div className="glass-medium rounded-xl p-4 border border-white/10">
+          <form onSubmit={createTask} className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-text-primary mb-2">
+              <label className="block text-xs font-medium text-text-primary mb-1.5">
                 Title *
               </label>
               <input
@@ -215,29 +447,29 @@ export default function TasksPage() {
                 required
                 value={newTask.title}
                 onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                className="w-full px-4 py-3 rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-3 py-2 text-sm rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-primary mb-2">
+              <label className="block text-xs font-medium text-text-primary mb-1.5">
                 Description
               </label>
               <textarea
-                rows={3}
+                rows={2}
                 value={newTask.description}
                 onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                className="w-full px-4 py-3 rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-3 py-2 text-sm rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">
+                <label className="block text-xs font-medium text-text-primary mb-1.5">
                   Project
                 </label>
                 <select
                   value={newTask.project_id}
                   onChange={(e) => setNewTask({ ...newTask, project_id: e.target.value })}
-                  className="w-full px-4 py-3 rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full px-3 py-2 text-sm rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="">No Project</option>
                   {projects.map((project) => (
@@ -248,13 +480,13 @@ export default function TasksPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">
+                <label className="block text-xs font-medium text-text-primary mb-1.5">
                   Priority
                 </label>
                 <select
                   value={newTask.priority}
                   onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as any })}
-                  className="w-full px-4 py-3 rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full px-3 py-2 text-sm rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
@@ -262,42 +494,42 @@ export default function TasksPage() {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">
+                <label className="block text-xs font-medium text-text-primary mb-1.5">
                   Assignee
                 </label>
                 <input
                   type="text"
                   value={newTask.assignee}
                   onChange={(e) => setNewTask({ ...newTask, assignee: e.target.value })}
-                  className="w-full px-4 py-3 rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full px-3 py-2 text-sm rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder="Initials (e.g., AR)"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">
+                <label className="block text-xs font-medium text-text-primary mb-1.5">
                   Due Date
                 </label>
                 <input
                   type="date"
                   value={newTask.due_date}
                   onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
-                  className="w-full px-4 py-3 rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full px-3 py-2 text-sm rounded-lg glass-medium border border-white/10 text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
             </div>
-            <div className="flex justify-end space-x-3">
+            <div className="flex justify-end space-x-2">
               <button
                 type="button"
                 onClick={() => setShowNewTaskForm(false)}
-                className="px-4 py-2 text-text-secondary hover:text-text-primary transition-colors"
+                className="px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:opacity-90 transition-colors"
+                className="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:opacity-90 transition-colors"
               >
                 Create Task
               </button>
@@ -313,7 +545,7 @@ export default function TasksPage() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* To Do Column */}
           <KanbanColumn
             id="todo"
@@ -323,6 +555,7 @@ export default function TasksPage() {
             onStatusChange={updateTaskStatus}
             getPriorityColor={getPriorityColor}
             onEdit={(task) => setEditingTask(task)}
+            onDelete={deleteTask}
           />
 
           {/* In Progress Column */}
@@ -334,6 +567,7 @@ export default function TasksPage() {
             onStatusChange={updateTaskStatus}
             getPriorityColor={getPriorityColor}
             onEdit={(task) => setEditingTask(task)}
+            onDelete={deleteTask}
           />
 
           {/* Done Column */}
@@ -345,6 +579,7 @@ export default function TasksPage() {
             onStatusChange={updateTaskStatus}
             getPriorityColor={getPriorityColor}
             onEdit={(task) => setEditingTask(task)}
+            onDelete={deleteTask}
           />
         </div>
         <DragOverlay>
@@ -368,6 +603,15 @@ export default function TasksPage() {
           setEditingTask(null);
         }}
       />
+
+      <DeleteConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Delete Task"
+        message="This will mark the task as deleted. This action can be undone by restoring the task from the deleted tasks list."
+        itemName={deleteModal.task?.title || ''}
+        onConfirm={confirmDeleteTask}
+        onCancel={() => setDeleteModal({ isOpen: false, task: null })}
+      />
     </div>
   );
 }
@@ -380,26 +624,27 @@ interface KanbanColumnProps {
   onStatusChange: (taskId: number, status: 'todo' | 'in_progress' | 'done') => void;
   getPriorityColor: (priority: string) => string;
   onEdit: (task: any) => void;
+  onDelete: (taskId: number) => void;
 }
 
-function KanbanColumn({ id, title, tasks, color, onStatusChange, getPriorityColor, onEdit }: KanbanColumnProps) {
+function KanbanColumn({ id, title, tasks, color, onStatusChange, getPriorityColor, onEdit, onDelete }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: id,
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-text-primary flex items-center space-x-2">
-          <div className={`w-3 h-3 rounded-full ${color}`}></div>
+        <h3 className="text-sm font-semibold text-text-primary flex items-center space-x-1.5">
+          <div className={`w-2 h-2 rounded-full ${color}`}></div>
           <span>{title}</span>
-          <span className="text-text-tertiary text-sm">({tasks.length})</span>
+          <span className="text-text-tertiary text-xs">({tasks.length})</span>
         </h3>
       </div>
       <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
         <div
           ref={setNodeRef}
-          className={`space-y-3 min-h-[200px] rounded-lg p-2 transition-colors ${
+          className={`space-y-2 min-h-[150px] rounded-lg p-2 transition-colors ${
             isOver ? 'bg-primary/10 border-2 border-primary border-dashed' : ''
           }`}
         >
@@ -410,10 +655,11 @@ function KanbanColumn({ id, title, tasks, color, onStatusChange, getPriorityColo
               onStatusChange={onStatusChange}
               getPriorityColor={getPriorityColor}
               onEdit={onEdit}
+              onDelete={onDelete}
             />
           ))}
           {tasks.length === 0 && (
-            <div className="text-center py-8 text-text-tertiary">
+            <div className="text-center py-6 text-xs text-text-tertiary">
               No tasks
             </div>
           )}
@@ -428,9 +674,10 @@ interface TaskCardProps {
   onStatusChange: (taskId: number, status: 'todo' | 'in_progress' | 'done') => void;
   getPriorityColor: (priority: string) => string;
   onEdit: (task: any) => void;
+  onDelete: (taskId: number) => void;
 }
 
-function SortableTaskCard({ task, onStatusChange, getPriorityColor, onEdit }: TaskCardProps) {
+function SortableTaskCard({ task, onStatusChange, getPriorityColor, onEdit, onDelete }: TaskCardProps) {
   const {
     attributes,
     listeners,
@@ -451,27 +698,34 @@ function SortableTaskCard({ task, onStatusChange, getPriorityColor, onEdit }: Ta
       ref={setNodeRef}
       style={style}
       {...attributes}
-      className="glass-medium rounded-xl p-4 border border-white/10 hover:glass-light transition-all duration-200 hover:scale-[1.02]"
+      className="glass-medium rounded-lg p-3 border border-white/10 hover:glass-light transition-all duration-200 hover:scale-[1.01]"
     >
-      <div className="space-y-3">
-        <div className="flex items-start justify-between gap-2">
+      <div className="space-y-2">
+        <div className="flex items-start justify-between gap-1.5">
           {/* Draggable area - title and content */}
-          <div 
+          <div
             {...listeners}
             className="flex-1 min-w-0 cursor-grab active:cursor-grabbing"
           >
-            <h4 className="font-semibold text-text-primary break-words">{task.title}</h4>
+            <h4 className="font-semibold text-sm text-text-primary break-words">{task.title}</h4>
           </div>
-          {/* Non-draggable area - edit button and priority */}
-          <div className="flex items-center gap-2 flex-shrink-0 pointer-events-auto">
+          {/* Non-draggable area - edit button, delete button and priority */}
+          <div className="flex items-center gap-1 flex-shrink-0 pointer-events-auto">
             <button
               onClick={() => onEdit(task)}
-              className="p-1.5 hover:bg-white/10 rounded transition-colors flex-shrink-0 cursor-pointer"
+              className="p-1 hover:bg-white/10 rounded transition-colors flex-shrink-0 cursor-pointer"
               title="Edit task"
             >
-              <Edit className="w-4 h-4 text-text-secondary hover:text-primary" />
+              <Edit className="w-3.5 h-3.5 text-text-secondary hover:text-primary" />
             </button>
-            <span className={`text-xs px-2 py-1 rounded-full flex-shrink-0 ${getPriorityColor(task.priority || 'medium')}`}>
+            <button
+              onClick={() => onDelete(task.id)}
+              className="p-1 hover:bg-white/10 rounded transition-colors flex-shrink-0 cursor-pointer"
+              title="Delete task"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-400 hover:text-red-300" />
+            </button>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 ${getPriorityColor(task.priority || 'medium')}`}>
               {task.priority || 'medium'}
             </span>
           </div>
@@ -480,26 +734,26 @@ function SortableTaskCard({ task, onStatusChange, getPriorityColor, onEdit }: Ta
         {/* Draggable area - description */}
         {task.description && (
           <div {...listeners} className="cursor-grab active:cursor-grabbing">
-            <p className="text-sm text-text-secondary line-clamp-2">
+            <p className="text-xs text-text-secondary line-clamp-2">
               {task.description}
             </p>
           </div>
         )}
 
         {/* Draggable area - metadata */}
-        <div 
+        <div
           {...listeners}
-          className="flex items-center justify-between text-sm cursor-grab active:cursor-grabbing"
+          className="flex items-center justify-between text-xs cursor-grab active:cursor-grabbing"
         >
           {(task.dueDate || task.due_date) && (
-            <div className="flex items-center space-x-2 text-text-tertiary">
-              <Calendar className="w-4 h-4" />
-              <span>{new Date((task.dueDate || task.due_date) as string).toLocaleDateString()}</span>
+            <div className="flex items-center space-x-1 text-text-tertiary">
+              <Calendar className="w-3 h-3" />
+              <span className="text-[10px]">{new Date((task.dueDate || task.due_date) as string).toLocaleDateString()}</span>
             </div>
           )}
           {task.assignee && (
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-xs font-semibold">
+            <div className="flex items-center space-x-1">
+              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-[10px] font-semibold">
                 {task.assignee}
               </div>
             </div>
@@ -507,11 +761,11 @@ function SortableTaskCard({ task, onStatusChange, getPriorityColor, onEdit }: Ta
         </div>
 
         {/* Non-draggable area - status buttons */}
-        <div className="flex gap-2 pt-2 border-t border-white/10 pointer-events-auto">
+        <div className="flex gap-1.5 pt-1.5 border-t border-white/10 pointer-events-auto">
           {task.status !== 'todo' && (
             <button
               onClick={() => onStatusChange(task.id, 'todo')}
-              className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg glass-light text-text-primary hover:glass-medium transition-all hover:scale-105 cursor-pointer"
+              className="flex-1 px-2 py-1 text-[10px] font-semibold rounded glass-light text-text-primary hover:glass-medium transition-all hover:scale-105 cursor-pointer"
             >
               📋 To Do
             </button>
@@ -519,15 +773,15 @@ function SortableTaskCard({ task, onStatusChange, getPriorityColor, onEdit }: Ta
           {task.status !== 'in_progress' && (
             <button
               onClick={() => onStatusChange(task.id, 'in_progress')}
-              className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:bg-blue-500/30 transition-all hover:scale-105 cursor-pointer"
+              className="flex-1 px-2 py-1 text-[10px] font-semibold rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:bg-blue-500/30 transition-all hover:scale-105 cursor-pointer"
             >
-              ⚡ In Progress
+              ⚡ Progress
             </button>
           )}
           {task.status !== 'done' && (
             <button
               onClick={() => onStatusChange(task.id, 'done')}
-              className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg bg-green-500/20 text-green-300 border border-green-500/30 hover:bg-green-500/30 transition-all hover:scale-105 cursor-pointer"
+              className="flex-1 px-2 py-1 text-[10px] font-semibold rounded bg-green-500/20 text-green-300 border border-green-500/30 hover:bg-green-500/30 transition-all hover:scale-105 cursor-pointer"
             >
               ✓ Done
             </button>
