@@ -60,7 +60,7 @@ const protectedRoutes = [
   '/tasks',
   '/team',
   '/settings',
-  '/reports',
+  '/documentation',
   '/attendance',
   '/billing',
   '/messages',

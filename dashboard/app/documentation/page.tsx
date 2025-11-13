@@ -5,6 +5,7 @@ import { Plus, FileText, Download, Edit, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { generateReportPDF } from '@/lib/report-pdf';
+import { Loader } from '@/components/Loader';
 
 interface Report {
   id: number;
@@ -26,7 +27,7 @@ interface Report {
   };
 }
 
-export default function ReportsPage() {
+export default function DocumentationPage() {
   const router = useRouter();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +41,7 @@ export default function ReportsPage() {
       const response = await axios.get('/api/reports');
       setReports(response.data.reports || []);
     } catch (error) {
-      console.error('Failed to load reports:', error);
+      console.error('Failed to load documentation:', error);
     } finally {
       setLoading(false);
     }
@@ -48,7 +49,7 @@ export default function ReportsPage() {
 
   const handleDelete = async (reportId: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Are you sure you want to delete this report?')) {
+    if (!confirm('Are you sure you want to delete this document?')) {
       return;
     }
 
@@ -56,8 +57,8 @@ export default function ReportsPage() {
       await axios.delete(`/api/reports/${reportId}`);
       loadReports();
     } catch (error) {
-      console.error('Failed to delete report:', error);
-      alert('Failed to delete report. Please try again.');
+      console.error('Failed to delete document:', error);
+      alert('Failed to delete document. Please try again.');
     }
   };
 
@@ -102,11 +103,7 @@ export default function ReportsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <Loader message="Loading documentation..." />;
   }
 
   return (
@@ -114,17 +111,17 @@ export default function ReportsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-text-primary">Reports</h1>
+          <h1 className="text-3xl font-bold text-text-primary">Documentation</h1>
           <p className="text-text-secondary mt-1">
-            Create and manage rich text reports
+            Create and manage rich text documentation
           </p>
         </div>
         <button
-          onClick={() => router.push('/reports/new')}
+          onClick={() => router.push('/documentation/new')}
           className="flex items-center space-x-2 px-4 py-2 glass-button text-white rounded-lg"
         >
           <Plus className="w-5 h-5" />
-          <span>New Report</span>
+          <span>New Document</span>
         </button>
       </div>
 
@@ -134,7 +131,7 @@ export default function ReportsPage() {
           <div
             key={report.id}
             className="glass-medium glass-hover rounded-2xl p-6 cursor-pointer group"
-            onClick={() => router.push(`/reports/${report.id}`)}
+            onClick={() => router.push(`/documentation/${report.id}`)}
           >
             <div className="flex items-start justify-between mb-4">
               <div className="w-12 h-12 rounded-xl glass-light flex items-center justify-center">
@@ -169,7 +166,7 @@ export default function ReportsPage() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  router.push(`/reports/${report.id}`);
+                  router.push(`/documentation/${report.id}`);
                 }}
                 className="flex-1 flex items-center justify-center space-x-1 px-3 py-2 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/40 transition-colors text-sm"
               >
@@ -197,12 +194,12 @@ export default function ReportsPage() {
       {reports.length === 0 && (
         <div className="text-center py-12 glass-medium rounded-2xl">
           <FileText className="w-12 h-12 text-text-tertiary mx-auto mb-3" />
-          <p className="text-text-secondary mb-4">No reports yet</p>
+          <p className="text-text-secondary mb-4">No documentation yet</p>
           <button
-            onClick={() => router.push('/reports/new')}
+            onClick={() => router.push('/documentation/new')}
             className="px-4 py-2 glass-button text-white rounded-lg"
           >
-            Create Your First Report
+            Create Your First Document
           </button>
         </div>
       )}

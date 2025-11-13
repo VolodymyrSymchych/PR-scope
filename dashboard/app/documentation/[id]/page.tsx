@@ -6,13 +6,14 @@ import { useRouter, useParams } from 'next/navigation';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import axios from 'axios';
 import { generateReportPDF } from '@/lib/report-pdf';
+import { Loader } from '@/components/Loader';
 
 interface Project {
   id: number;
   name: string;
 }
 
-export default function ReportEditorPage() {
+export default function DocumentationEditorPage() {
   const router = useRouter();
   const params = useParams();
   const isNew = params.id === 'new';
@@ -55,7 +56,7 @@ export default function ReportEditorPage() {
     } catch (error) {
       console.error('Failed to load report:', error);
       alert('Failed to load report. Please try again.');
-      router.push('/reports');
+      router.push('/documentation');
     } finally {
       setLoadingData(false);
     }
@@ -83,7 +84,7 @@ export default function ReportEditorPage() {
         await axios.put(`/api/reports/${params.id}`, reportData);
       }
       
-      router.push('/reports');
+      router.push('/documentation');
     } catch (error: any) {
       console.error('Failed to save report:', error);
       alert(`Failed to save report: ${error.response?.data?.error || error.message}`);
@@ -114,11 +115,7 @@ export default function ReportEditorPage() {
   };
 
   if (loadingData) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <Loader message="Loading document editor..." />;
   }
 
   return (
@@ -126,11 +123,11 @@ export default function ReportEditorPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => router.push('/reports')}
+          onClick={() => router.push('/documentation')}
           className="flex items-center space-x-2 text-text-secondary hover:text-text-primary transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
-          <span>Back to Reports</span>
+          <span>Back to Documentation</span>
         </button>
         <div className="flex items-center space-x-3">
           <button
@@ -225,7 +222,7 @@ export default function ReportEditorPage() {
       {/* Additional Actions */}
       <div className="flex justify-end space-x-3 pb-8">
         <button
-          onClick={() => router.push('/reports')}
+          onClick={() => router.push('/documentation')}
           className="px-6 py-3 text-text-secondary hover:text-text-primary transition-colors"
         >
           Cancel

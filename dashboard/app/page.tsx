@@ -1,7 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { FolderKanban, CheckCircle, TrendingUp, AlertCircle, MessageSquare } from 'lucide-react';
+import type { CSSProperties, Dispatch, ReactNode, SetStateAction } from 'react';
+import type { Modifier } from '@dnd-kit/core';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  FolderKanban,
+  CheckCircle,
+  TrendingUp,
+  AlertCircle,
+  MessageSquare,
+  GripVertical,
+  Minus,
+  Plus,
+  SlidersHorizontal,
+  Undo2,
+} from 'lucide-react';
 import { StatsCard } from '@/components/StatsCard';
 import { ProjectCard } from '@/components/ProjectCard';
 import { CalendarView } from '@/components/CalendarView';
@@ -11,6 +24,7 @@ import { UpcomingTasks } from '@/components/UpcomingTasks';
 import { api, Project, Stats } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { Loader } from '@/components/Loader';
 import {
   DndContext,
   DragEndEvent,
@@ -20,7 +34,421 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
+import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import axios from 'axios';
+import { cn } from '@/lib/utils';
+
+type WidgetRenderContext = {
+  stats: Stats;
+  projects: Project[];
+  refreshKey: number;
+  setRefreshKey: Dispatch<SetStateAction<number>>;
+  router: ReturnType<typeof useRouter>;
+};
+
+type DashboardWidgetDefinition = {
+  id: string;
+  label: string;
+  description: string;
+  render: (context: WidgetRenderContext) => ReactNode;
+  className?: string;
+  defaultSize: (typeof AVAILABLE_WIDTHS)[number];
+};
+
+const LOCAL_STORAGE_KEY = 'psa-dashboard-widgets-v1';
+
+const DEFAULT_WIDGETS: string[] = [
+  'stats-overview',
+  'budget-tracking',
+  'recent-projects',
+  'calendar',
+  'progress',
+  'upcoming-tasks',
+];
+
+const AVAILABLE_WIDTHS = [3, 4, 6, 8, 12] as const;
+
+const COL_SPAN_CLASSES: Record<number, string> = {
+  3: 'xl:col-span-3',
+  4: 'xl:col-span-4',
+  6: 'xl:col-span-6',
+  8: 'xl:col-span-8',
+  12: 'xl:col-span-12',
+};
+
+const DEFAULT_GRID_PATTERN = 96;
+
+const DASHBOARD_GRID_BASE: CSSProperties = {
+  backgroundImage:
+    'linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(0deg, rgba(255,255,255,0.06) 1px, transparent 1px)',
+  maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.15), rgba(0,0,0,0.35))',
+};
+
+const isAvailableWidth = (
+  value: number
+): value is (typeof AVAILABLE_WIDTHS)[number] =>
+  AVAILABLE_WIDTHS.some((width) => width === value);
+
+const createGridSnapModifier = (gridSize: number): Modifier => {
+  return ({ transform, active }) => {
+    if (!transform) return transform;
+    if (!active?.data?.current?.gridSnap) return transform;
+
+    const safeGridSize = gridSize > 0 ? gridSize : 1;
+    const snappedX = Math.round(transform.x / safeGridSize) * safeGridSize;
+    const snappedY = Math.round(transform.y / safeGridSize) * safeGridSize;
+
+    return {
+      ...transform,
+      x: snappedX,
+      y: snappedY,
+    };
+  };
+};
+
+function StatsOverviewWidget({ stats, projects }: { stats: Stats; projects: Project[] }) {
+  const highRiskCount = projects.filter(
+    (project) => project.risk_level === 'HIGH' || project.risk_level === 'CRITICAL'
+  ).length;
+
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <StatsCard
+        title="Projects In Progress"
+        value={stats.projects_in_progress}
+        icon={FolderKanban}
+        iconBgColor="bg-red-500"
+        trend={stats.trends?.projects_in_progress}
+      />
+      <StatsCard
+        title="Completion Rate"
+        value={`${stats.completion_rate}%`}
+        icon={TrendingUp}
+        iconBgColor="bg-orange-500"
+      />
+      <StatsCard
+        title="Total Projects"
+        value={stats.total_projects}
+        icon={CheckCircle}
+        iconBgColor="bg-blue-500"
+        trend={stats.trends?.total_projects}
+      />
+      <StatsCard
+        title="High Risk Projects"
+        value={highRiskCount}
+        icon={AlertCircle}
+        iconBgColor="bg-yellow-500"
+      />
+    </div>
+  );
+}
+
+function RecentProjectsWidget({
+  projects,
+  router,
+}: {
+  projects: Project[];
+  router: ReturnType<typeof useRouter>;
+}) {
+  const displayedProjects = projects.slice(0, 4);
+
+  return (
+    <div className="glass-medium rounded-2xl p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-lg font-bold text-text-primary">Recent Projects</h3>
+        <button
+          onClick={() => router.push('/projects')}
+          className="text-sm text-[#8098F9] transition-colors hover:text-[#a0b0fc]"
+        >
+          View All
+        </button>
+      </div>
+      {displayedProjects.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {displayedProjects.map((project) => (
+            <ProjectCard
+              key={project.id}
+              {...project}
+              team={['JD', 'SK', 'MR', 'AR', 'TC', 'LM']}
+              onClick={() => router.push(`/projects/${project.id}`)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-12">
+          <FolderKanban className="mx-auto mb-3 h-12 w-12 text-text-tertiary" />
+          <p className="text-text-secondary">No projects yet. Start by analyzing your first project!</p>
+          <button
+            onClick={() => router.push('/projects/new')}
+            className="glass-button mt-4 rounded-lg px-4 py-2 text-white"
+          >
+            New Analysis
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WidgetLibraryItem({
+  definition,
+  isSelected,
+  onToggle,
+}: {
+  definition: DashboardWidgetDefinition;
+  isSelected: boolean;
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <label
+      className={cn(
+        'flex cursor-pointer items-start space-x-3 rounded-xl border border-white/10 p-3 transition-all',
+        isSelected ? 'glass-light ring-1 ring-primary/60' : 'glass-subtle hover:glass-light'
+      )}
+    >
+      <input
+        type="checkbox"
+        checked={isSelected}
+        onChange={() => onToggle(definition.id)}
+        className="mt-1 h-4 w-4 rounded border-white/30 bg-transparent text-primary focus:ring-primary"
+      />
+      <div>
+        <p className="text-sm font-semibold text-text-primary">{definition.label}</p>
+        <p className="text-xs text-text-tertiary">{definition.description}</p>
+      </div>
+    </label>
+  );
+}
+
+function DashboardCustomizationPanel({
+  selectedWidgets,
+  availableWidgets,
+  onToggleWidget,
+  onReset,
+}: {
+  selectedWidgets: string[];
+  availableWidgets: DashboardWidgetDefinition[];
+  onToggleWidget: (id: string) => void;
+  onReset: () => void;
+}) {
+  const selectedDefinitions = selectedWidgets
+    .map((id) => availableWidgets.find((widget) => widget.id === id))
+    .filter((widget): widget is DashboardWidgetDefinition => Boolean(widget));
+
+  return (
+    <div className="glass-medium rounded-2xl border border-white/10 p-6">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-text-primary">Customize dashboard</h2>
+          <p className="text-sm text-text-tertiary">
+            Drag to reorder selected widgets, or use the library to show and hide sections.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onReset}
+            className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-text-secondary transition-all hover:border-primary/60 hover:text-text-primary"
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+            Reset to default
+          </button>
+        </div>
+      </div>
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div>
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-tertiary">
+            Selected widgets
+          </h3>
+          <div className="space-y-3">
+            {selectedDefinitions.length > 0 ? (
+              selectedDefinitions.map((widget) => (
+                <div
+                  key={widget.id}
+                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-transparent px-3 py-2 transition-all glass-subtle hover:glass-light"
+                >
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-text-primary">{widget.label}</p>
+                    <p className="text-xs text-text-tertiary">{widget.description}</p>
+                  </div>
+                  <span className="rounded bg-white/10 px-2 py-1 text-[11px] font-medium text-text-secondary">
+                    Drag tiles on the dashboard to reorder
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onToggleWidget(widget.id)}
+                    className="text-xs text-text-tertiary transition-colors hover:text-danger"
+                  >
+                    Hide
+                  </button>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-xl border border-dashed border-white/10 p-4 text-center text-sm text-text-tertiary">
+                No widgets selected. Use the library to enable widgets.
+              </div>
+            )}
+          </div>
+        </div>
+        <div>
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-tertiary">
+            Widget library
+          </h3>
+          <div className="space-y-3">
+            {availableWidgets.map((widget) => (
+              <WidgetLibraryItem
+                key={widget.id}
+                definition={widget}
+                isSelected={selectedWidgets.includes(widget.id)}
+                onToggle={onToggleWidget}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const AVAILABLE_WIDGETS: DashboardWidgetDefinition[] = [
+  {
+    id: 'stats-overview',
+    label: 'Project Stats Overview',
+    description: 'Key metrics for ongoing projects and completion trends.',
+    className: '',
+    defaultSize: 12,
+    render: ({ stats, projects }) => <StatsOverviewWidget stats={stats} projects={projects} />,
+  },
+  {
+    id: 'budget-tracking',
+    label: 'Budget Tracking',
+    description: 'Monitor spend, remaining budget, and forecast insights.',
+    className: '',
+    defaultSize: 4,
+    render: () => <BudgetTracking />,
+  },
+  {
+    id: 'recent-projects',
+    label: 'Recent Projects',
+    description: 'Quick access to the projects you worked on most recently.',
+    className: '',
+    defaultSize: 6,
+    render: ({ projects, router }) => <RecentProjectsWidget projects={projects} router={router} />,
+  },
+  {
+    id: 'calendar',
+    label: 'Calendar',
+    description: 'Plan tasks across the calendar and drag tasks onto dates.',
+    className: '',
+    defaultSize: 8,
+    render: ({ refreshKey }) => <CalendarView refreshKey={refreshKey} />,
+  },
+  {
+    id: 'progress',
+    label: 'Progress Overview',
+    description: 'See task completion and time tracking progress.',
+    className: '',
+    defaultSize: 4,
+    render: () => <ProgressSection />,
+  },
+  {
+    id: 'upcoming-tasks',
+    label: 'Upcoming Tasks',
+    description: 'Prioritize what’s next and drag tasks onto the calendar.',
+    className: '',
+    defaultSize: 4,
+    render: ({ refreshKey }) => <UpcomingTasks key={refreshKey} />,
+  },
+];
+
+const DEFAULT_WIDGET_SIZE_MAP: Record<string, (typeof AVAILABLE_WIDTHS)[number]> = AVAILABLE_WIDGETS.reduce(
+  (acc, widget) => {
+    acc[widget.id] = widget.defaultSize;
+    return acc;
+  },
+  {} as Record<string, (typeof AVAILABLE_WIDTHS)[number]>
+);
+
+const getDefaultWidgetSize = (id: string): (typeof AVAILABLE_WIDTHS)[number] =>
+  DEFAULT_WIDGET_SIZE_MAP[id] ?? AVAILABLE_WIDTHS[0];
+
+function DashboardWidgetContainer({
+  widget,
+  size,
+  onResize,
+  children,
+}: {
+  widget: DashboardWidgetDefinition;
+  size: (typeof AVAILABLE_WIDTHS)[number];
+  onResize: (id: string, direction: 'increase' | 'decrease') => void;
+  children: ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: widget.id,
+    data: { type: 'widget-grid', gridSnap: true },
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const colSpanClass = COL_SPAN_CLASSES[size] ?? 'xl:col-span-6';
+  const sizeIndex = AVAILABLE_WIDTHS.indexOf(size as (typeof AVAILABLE_WIDTHS)[number]);
+  const canDecrease = sizeIndex > 0;
+  const canIncrease = sizeIndex > -1 && sizeIndex < AVAILABLE_WIDTHS.length - 1;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        'group relative col-span-1',
+        colSpanClass,
+        widget.className,
+        isDragging && 'z-20 opacity-75'
+      )}
+    >
+      <div className="pointer-events-none absolute right-3 top-3 z-20 flex items-center gap-1 rounded-lg bg-black/40 px-2 py-1 text-xs font-semibold text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+        <button
+          type="button"
+          className="pointer-events-auto cursor-grab rounded p-1 transition-colors hover:bg-white/20 active:cursor-grabbing"
+          {...listeners}
+          {...attributes}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <div className="pointer-events-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onResize(widget.id, 'decrease')}
+            disabled={!canDecrease}
+            className={cn(
+              'rounded p-1 transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40'
+            )}
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+          <span className="min-w-[1.5rem] text-center text-[11px] leading-none">{size}</span>
+          <button
+            type="button"
+            onClick={() => onResize(widget.id, 'increase')}
+            disabled={!canIncrease}
+            className={cn(
+              'rounded p-1 transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40'
+            )}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      <div className={cn('h-full', isDragging && 'pointer-events-none')}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -28,12 +456,21 @@ export default function DashboardPage() {
     projects_in_progress: 0,
     total_projects: 0,
     completion_rate: 0,
-    projects_completed: 0
+    projects_completed: 0,
   });
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeTask, setActiveTask] = useState<any>(null);
+  const [selectedWidgets, setSelectedWidgets] = useState<string[]>(DEFAULT_WIDGETS);
+  const [widgetSizes, setWidgetSizes] = useState<
+    Record<string, (typeof AVAILABLE_WIDTHS)[number]>
+  >(() => ({
+    ...DEFAULT_WIDGET_SIZE_MAP,
+  }));
+  const [isCustomizationOpen, setIsCustomizationOpen] = useState(false);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [gridPatternSize, setGridPatternSize] = useState<number>(DEFAULT_GRID_PATTERN);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -42,19 +479,115 @@ export default function DashboardPage() {
       },
     })
   );
+  const widgetGridSnapModifier = useMemo(
+    () => createGridSnapModifier(Math.max(gridPatternSize, 1)),
+    [gridPatternSize]
+  );
+  const gridBackgroundStyle = useMemo(
+    () => ({
+      ...DASHBOARD_GRID_BASE,
+      backgroundSize: `${Math.max(gridPatternSize, 1)}px ${Math.max(gridPatternSize, 1)}px`,
+    }),
+    [gridPatternSize]
+  );
+  const updateGridMetrics = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const node = gridRef.current;
+    if (!node) return;
+
+    const computedStyle = window.getComputedStyle(node);
+    const templateColumns = computedStyle.gridTemplateColumns || '';
+    let columns = 12;
+    const repeatMatch = templateColumns.match(/repeat\((\d+)/);
+    if (repeatMatch && repeatMatch[1]) {
+      const parsed = parseInt(repeatMatch[1], 10);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        columns = parsed;
+      }
+    } else if (templateColumns.length > 0) {
+      const parts = templateColumns
+        .split(' ')
+        .map((part) => part.trim())
+        .filter((part) => part.length > 0 && part !== '/');
+      if (parts.length > 0) {
+        columns = parts.length;
+      }
+    }
+
+    if (!Number.isFinite(columns) || columns <= 0) {
+      columns = 1;
+    }
+
+    const rawGap =
+      parseFloat(computedStyle.columnGap || computedStyle.gap || computedStyle.rowGap || '0') || 0;
+    const gap = Number.isFinite(rawGap) && rawGap >= 0 ? rawGap : 0;
+
+    const width = node.clientWidth;
+    if (width <= 0) return;
+
+    const cellWidth = (width - gap * (columns - 1)) / columns;
+    if (!Number.isFinite(cellWidth) || cellWidth <= 0) return;
+
+    const pattern = cellWidth + gap;
+    if (!Number.isFinite(pattern) || pattern <= 0) return;
+
+    setGridPatternSize(pattern);
+  }, []);
 
   useEffect(() => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const stored = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!stored) return;
+
+    try {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed.selectedWidgets)) {
+        const validWidgets = parsed.selectedWidgets.filter((id: unknown): id is string =>
+          AVAILABLE_WIDGETS.some((widget) => widget.id === id)
+        );
+        if (validWidgets.length > 0) {
+          setSelectedWidgets(validWidgets);
+        }
+      }
+      if (parsed.widgetSizes && typeof parsed.widgetSizes === 'object') {
+        const restoredSizes: Record<string, (typeof AVAILABLE_WIDTHS)[number]> = {
+          ...DEFAULT_WIDGET_SIZE_MAP,
+        };
+        AVAILABLE_WIDGETS.forEach((widget) => {
+          const rawSize = parsed.widgetSizes[widget.id];
+          if (typeof rawSize === 'number' && isAvailableWidth(rawSize)) {
+            restoredSizes[widget.id] = rawSize;
+          }
+        });
+        setWidgetSizes(restoredSizes);
+      }
+    } catch (error) {
+      console.warn('Failed to parse dashboard widget configuration:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({
+        selectedWidgets,
+        widgetSizes,
+        updatedAt: new Date().toISOString(),
+      })
+    );
+  }, [selectedWidgets, widgetSizes]);
+
   const loadData = async () => {
     try {
-      const [statsData, projectsData] = await Promise.all([
-        api.getStats(),
-        api.getProjects()
-      ]);
+      const [statsData, projectsData] = await Promise.all([api.getStats(), api.getProjects()]);
       setStats(statsData);
-      setProjects(projectsData.projects.slice(0, 4)); // Show only first 4 projects
+      setProjects(projectsData.projects || []);
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
@@ -62,17 +595,8 @@ export default function DashboardPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
-      </div>
-    );
-  }
-
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
-    // Fetch task data from active data
     if (active.data.current?.task) {
       setActiveTask(active.data.current.task);
     }
@@ -80,47 +604,60 @@ export default function DashboardPage() {
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+
+    const itemType = active.data.current?.type;
+
+    if (itemType === 'widget-grid' || itemType === 'widget-control') {
+      if (over && active.id !== over.id) {
+        setSelectedWidgets((items) => {
+          const oldIndex = items.indexOf(active.id as string);
+          const newIndex = items.indexOf(over.id as string);
+          if (oldIndex === -1 || newIndex === -1) return items;
+          return arrayMove(items, oldIndex, newIndex);
+        });
+      }
+      return;
+    }
+
     setActiveTask(null);
-    
+
     if (!over) return;
 
-    // Check if task was dropped on a calendar date
-    const taskId = typeof active.id === 'number' ? active.id : parseInt(active.id as string);
+    const taskId = typeof active.id === 'number' ? active.id : parseInt(active.id as string, 10);
     const dateId = over.id;
 
-    // If dropped on a calendar date (format: "date-YYYY-MM-DD")
+    if (Number.isNaN(taskId)) {
+      return;
+    }
+
     if (typeof dateId === 'string' && dateId.startsWith('date-')) {
       const dateStr = dateId.replace('date-', '');
       const originalTask = active.data.current?.task;
-      
+
       try {
-        // If task has start_date and end_date, update them to span multiple days
-        // Otherwise, just update due_date
         if (originalTask?.start_date && originalTask?.end_date) {
-          // Calculate duration
           const startDate = new Date(originalTask.start_date);
           const endDate = new Date(originalTask.end_date);
-          const duration = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-          
-          // Set new start_date to dropped date
+          const duration = Math.ceil(
+            (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+          );
+
           const newStartDate = new Date(dateStr);
           const newEndDate = new Date(newStartDate);
           newEndDate.setDate(newStartDate.getDate() + duration);
-          
+
           await axios.put(`/api/tasks/${taskId}`, {
             start_date: newStartDate.toISOString().split('T')[0],
             due_date: dateStr,
             end_date: newEndDate.toISOString().split('T')[0],
           });
         } else {
-          // Simple task - just update due_date
           await axios.put(`/api/tasks/${taskId}`, {
             due_date: dateStr,
           });
         }
-        
-        // Trigger refresh of calendar and tasks
-        setRefreshKey(prev => prev + 1);
+
+        setRefreshKey((prev) => prev + 1);
         toast.success('Task date updated successfully');
       } catch (error: any) {
         console.error('Failed to update task due date:', error);
@@ -129,113 +666,199 @@ export default function DashboardPage() {
     }
   };
 
+  const widgetMap = useMemo(() => {
+    const map = new Map<string, DashboardWidgetDefinition>();
+    AVAILABLE_WIDGETS.forEach((widget) => map.set(widget.id, widget));
+    return map;
+  }, []);
+
+  const renderableWidgets = useMemo(
+    () =>
+      selectedWidgets
+        .map((id) => widgetMap.get(id))
+        .filter((widget): widget is DashboardWidgetDefinition => Boolean(widget)),
+    [selectedWidgets, widgetMap]
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (renderableWidgets.length === 0) return;
+
+    const node = gridRef.current;
+    if (!node) return;
+
+    let animationFrame: number | null = null;
+
+    const handleResize = () => {
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      animationFrame = window.requestAnimationFrame(() => {
+        updateGridMetrics();
+      });
+    };
+
+    updateGridMetrics();
+
+    const resizeObserver =
+      'ResizeObserver' in window ? new ResizeObserver(handleResize) : undefined;
+    resizeObserver?.observe(node);
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [renderableWidgets.length, updateGridMetrics]);
+
+  const handleResizeWidget = (id: string, direction: 'increase' | 'decrease') => {
+    setWidgetSizes((prev) => {
+      const currentSize = prev[id] ?? getDefaultWidgetSize(id);
+      const alignedSize = isAvailableWidth(currentSize) ? currentSize : getDefaultWidgetSize(id);
+      const currentIndex = AVAILABLE_WIDTHS.indexOf(alignedSize);
+      if (currentIndex === -1) {
+        return { ...prev, [id]: getDefaultWidgetSize(id) };
+      }
+      const nextIndex =
+        direction === 'increase'
+          ? Math.min(currentIndex + 1, AVAILABLE_WIDTHS.length - 1)
+          : Math.max(currentIndex - 1, 0);
+      if (nextIndex === currentIndex) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [id]: AVAILABLE_WIDTHS[nextIndex],
+      };
+    });
+  };
+
+  const handleToggleWidget = (id: string) => {
+    setSelectedWidgets((current) => {
+      const exists = current.includes(id);
+      if (exists) {
+        return current.filter((widgetId) => widgetId !== id);
+      }
+      setWidgetSizes((prev) => {
+        if (prev[id]) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [id]: getDefaultWidgetSize(id),
+        };
+      });
+      return [...current, id];
+    });
+  };
+
+  const handleResetWidgets = () => {
+    setSelectedWidgets(DEFAULT_WIDGETS);
+    setWidgetSizes({ ...DEFAULT_WIDGET_SIZE_MAP });
+  };
+
+  if (loading) {
+    return <Loader message="Loading your personalized dashboard..." />;
+  }
+
   return (
-    <DndContext 
-      sensors={sensors} 
+    <DndContext
+      sensors={sensors}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      modifiers={[widgetGridSnapModifier]}
     >
       <div className="space-y-6">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatsCard
-            title="Projects In Progress"
-            value={stats.projects_in_progress}
-            icon={FolderKanban}
-            iconBgColor="bg-red-500"
-            trend={stats.trends?.projects_in_progress}
-          />
-          <StatsCard
-            title="Completion Rate"
-            value={`${stats.completion_rate}%`}
-            icon={TrendingUp}
-            iconBgColor="bg-orange-500"
-          />
-          <StatsCard
-            title="Total Projects"
-            value={stats.total_projects}
-            icon={CheckCircle}
-            iconBgColor="bg-blue-500"
-            trend={stats.trends?.total_projects}
-          />
-          <StatsCard
-            title="High Risk Projects"
-            value={projects.filter(p => p.risk_level === 'HIGH' || p.risk_level === 'CRITICAL').length}
-            icon={AlertCircle}
-            iconBgColor="bg-yellow-500"
-          />
-          <BudgetTracking />
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-bold text-text-primary">Dashboard overview</h1>
+            <p className="text-sm text-text-tertiary">
+              Tailor the workspace by choosing which widgets appear on your home view.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsCustomizationOpen((prev) => !prev)}
+            className="flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-text-secondary transition-all hover:border-primary/60 hover:text-text-primary"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            {isCustomizationOpen ? 'Hide customization' : 'Customize dashboard'}
+          </button>
         </div>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Projects and Calendar */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Recent Projects */}
-            <div className="glass-medium rounded-2xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-text-primary">
-                  Recent Projects
-                </h3>
-                <button
-                  onClick={() => router.push('/projects')}
-                  className="text-sm text-[#8098F9] hover:text-[#a0b0fc] transition-colors"
-                >
-                  View All
-                </button>
-              </div>
-              {projects.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {projects.map((project) => (
-                    <ProjectCard
-                      key={project.id}
-                      {...project}
-                      team={['JD', 'SK', 'MR', 'AR', 'TC', 'LM']}
-                      onClick={() => router.push(`/projects/${project.id}`)}
-                    />
-                  ))}
+        {isCustomizationOpen && (
+          <DashboardCustomizationPanel
+            selectedWidgets={selectedWidgets}
+            availableWidgets={AVAILABLE_WIDGETS}
+            onToggleWidget={handleToggleWidget}
+            onReset={handleResetWidgets}
+          />
+        )}
+
+        {renderableWidgets.length > 0 ? (
+          <div className="relative rounded-3xl border border-white/5 bg-white/0 p-4 transition-all duration-300 hover:border-white/10">
+            <div
+              className="pointer-events-none absolute inset-0 rounded-[22px] opacity-60"
+              style={gridBackgroundStyle}
+            />
+            <div className="relative">
+              <SortableContext
+                items={renderableWidgets.map((widget) => widget.id)}
+                strategy={rectSortingStrategy}
+              >
+                <div ref={gridRef} className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+                  {renderableWidgets.map((widget) => {
+                    const widgetSize = widgetSizes[widget.id] ?? widget.defaultSize;
+                    return (
+                      <DashboardWidgetContainer
+                        key={widget.id}
+                        widget={widget}
+                        size={widgetSize}
+                        onResize={handleResizeWidget}
+                      >
+                        {widget.render({
+                          stats,
+                          projects,
+                          refreshKey,
+                          setRefreshKey,
+                          router,
+                        })}
+                      </DashboardWidgetContainer>
+                    );
+                  })}
                 </div>
-              ) : (
-                <div className="text-center py-12">
-                  <FolderKanban className="w-12 h-12 text-text-tertiary mx-auto mb-3" />
-                  <p className="text-text-secondary">
-                    No projects yet. Start by analyzing your first project!
-                  </p>
-                  <button
-                    onClick={() => router.push('/projects/new')}
-                    className="mt-4 px-4 py-2 glass-button text-white rounded-lg"
-                  >
-                    New Analysis
-                  </button>
-                </div>
-              )}
+              </SortableContext>
             </div>
-
-            {/* Calendar */}
-            <CalendarView key={refreshKey} />
           </div>
-
-          {/* Right Column - Progress and Tasks */}
-          <div className="space-y-6">
-            <ProgressSection />
-            <UpcomingTasks key={refreshKey} />
+        ) : (
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+            <div className="col-span-full rounded-2xl border border-dashed border-white/10 p-12 text-center">
+              <p className="text-lg font-semibold text-text-primary">Your dashboard is empty</p>
+              <p className="mt-2 text-sm text-text-tertiary">
+                Turn widgets back on in the customization panel to start building your view.
+              </p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
       <DragOverlay>
         {activeTask ? (
-          <div className="glass-medium rounded-xl p-3 border border-white/20  rotate-2 bg-[#8098F9]/10 backdrop-blur-xl">
+          <div className="glass-medium rotate-2 rounded-xl border border-white/20 bg-[#8098F9]/10 p-3 backdrop-blur-xl">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 rounded-lg glass-light flex items-center justify-center">
-                <MessageSquare className="w-4 h-4 text-[#8098F9]" />
+              <div className="glass-light flex h-8 w-8 items-center justify-center rounded-lg">
+                <MessageSquare className="h-4 w-4 text-[#8098F9]" />
               </div>
               <div>
-                <div className="font-semibold text-text-primary text-sm">
-                  {activeTask.title}
-                </div>
+                <div className="text-sm font-semibold text-text-primary">{activeTask.title}</div>
                 {activeTask.due_date && (
                   <div className="text-xs text-text-tertiary">
-                    {new Date(activeTask.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {new Date(activeTask.due_date).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                    })}
                   </div>
                 )}
               </div>

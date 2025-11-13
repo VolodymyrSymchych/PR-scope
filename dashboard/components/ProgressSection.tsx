@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { CheckCircle2, Circle, Clock, Timer } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import axios from 'axios';
+import { Loader } from '@/components/Loader';
 
 interface Task {
   id: number;
@@ -106,9 +107,7 @@ export function ProgressSection() {
     return (
       <div className="glass-medium rounded-2xl p-6">
         <h3 className="text-lg font-bold text-text-primary mb-4">Progress</h3>
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
+        <Loader variant="section" size="sm" message="Loading progress insights..." />
       </div>
     );
   }

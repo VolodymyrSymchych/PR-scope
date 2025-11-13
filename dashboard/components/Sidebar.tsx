@@ -16,11 +16,11 @@ import {
   Receipt,
 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Logo } from './Logo';
 import { useSidebar } from './SidebarContext';
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useEffect } from 'react';
 
 const navigation = [
   { name: 'Overview', href: '/', icon: LayoutDashboard },
@@ -29,18 +29,31 @@ const navigation = [
   { name: 'Gantt Chart', href: '/timeline', icon: BarChart3 },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
   { name: 'Attendance', href: '/attendance', icon: Clock },
-  { name: 'Reports', href: '/reports', icon: FileText },
+  { name: 'Documentation', href: '/documentation', icon: FileText },
   { name: 'Team', href: '/team', icon: Users },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
 export const Sidebar = memo(function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { isExpanded, setIsExpanded } = useSidebar();
 
   const toggleSidebar = useCallback(() => {
     setIsExpanded(!isExpanded);
   }, [isExpanded, setIsExpanded]);
+
+  useEffect(() => {
+    navigation.forEach((item) => {
+      if (item.href && item.href !== pathname) {
+        try {
+          router.prefetch(item.href);
+        } catch (error) {
+          // Ignore prefetch errors (e.g., dynamic routes without prefetch support)
+        }
+      }
+    });
+  }, [router, pathname]);
 
   return (
     <aside
