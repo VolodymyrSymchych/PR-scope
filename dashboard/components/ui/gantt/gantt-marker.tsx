@@ -317,7 +317,10 @@ export function GanttToday() {
   return (
     <div
       className="absolute top-0 bottom-0 w-0.5 z-30 bg-primary opacity-80"
-      style={{ left: `${left + paddingOffset}px` }}
+      style={{ 
+        left: `${left + paddingOffset}px`,
+        height: '100%'
+      }}
     />
   );
 }

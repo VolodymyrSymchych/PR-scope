@@ -78,7 +78,9 @@ export const Sidebar = memo(function Sidebar() {
             </div>
           ) : (
             <div className="flex flex-col items-center gap-4">
-              <Logo variant="icon" showText={false} />
+              <div className="flex justify-center w-full">
+                <Logo variant="icon" showText={false} />
+              </div>
               <button
                 onClick={toggleSidebar}
                 className="p-2 rounded-lg glass-light hover:glass-medium duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] hover:scale-110 active:scale-95"
