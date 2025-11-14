@@ -41,7 +41,24 @@ const nextConfig = {
   },
   // Use experimental option for Next.js 14.2.0
   experimental: {
-    serverComponentsExternalPackages: ['@aws-sdk/client-s3', '@aws-sdk/s3-request-presigner'],
+    serverComponentsExternalPackages: [
+      '@aws-sdk/client-s3',
+      '@aws-sdk/s3-request-presigner',
+      '@anthropic-ai/sdk',
+    ],
+    // Optimize package imports for better tree-shaking
+    optimizePackageImports: [
+      'lucide-react',
+      'recharts',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-tabs',
+    ],
+  },
+  // Image optimization config
+  images: {
+    formats: ['image/webp', 'image/avif'],
+    minimumCacheTTL: 60,
   },
 };
 

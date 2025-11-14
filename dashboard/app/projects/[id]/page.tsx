@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -18,14 +19,23 @@ import {
   Edit,
 } from 'lucide-react';
 import { ProjectBudgetTracking } from '@/components/ProjectBudgetTracking';
-import { InvoicesAndCashFlow } from '@/components/InvoicesAndCashFlow';
 import { FileUploader } from '@/components/FileUploader';
 import { FileList } from '@/components/FileList';
 import { ProjectTeamManagement } from '@/components/ProjectTeamManagement';
-import { CashFlowSummary } from '@/components/CashFlowSummary';
 import { EditProjectModal } from '@/components/EditProjectModal';
 import { api } from '@/lib/api';
 import { cn, getRiskColor, formatDate } from '@/lib/utils';
+
+// Lazy load heavy chart components
+const InvoicesAndCashFlow = dynamic(() => import('@/components/InvoicesAndCashFlow').then(m => ({ default: m.InvoicesAndCashFlow })), {
+  ssr: false,
+  loading: () => <div className="glass-light rounded-xl p-5 h-96 animate-pulse" />
+});
+
+const CashFlowSummary = dynamic(() => import('@/components/CashFlowSummary').then(m => ({ default: m.CashFlowSummary })), {
+  ssr: false,
+  loading: () => <div className="glass-light rounded-xl p-5 h-64 animate-pulse" />
+});
 
 interface ProjectDetail {
   project: {

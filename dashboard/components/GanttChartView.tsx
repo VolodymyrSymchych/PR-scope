@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, startTransition } from 'react';
+import dynamic from 'next/dynamic';
 import axios from 'axios';
 import { Plus, BarChart3 } from 'lucide-react';
 import {
@@ -15,8 +16,15 @@ import {
   GanttDependencyLines,
   type GanttFeature,
 } from '@/components/ui/gantt';
-import { AddTaskModal } from '@/components/AddTaskModal';
-import { EditTaskModal } from '@/components/EditTaskModal';
+
+// Lazy load modals - only load when opened
+const AddTaskModal = dynamic(() => import('@/components/AddTaskModal').then(m => ({ default: m.AddTaskModal })), {
+  ssr: false
+});
+
+const EditTaskModal = dynamic(() => import('@/components/EditTaskModal').then(m => ({ default: m.EditTaskModal })), {
+  ssr: false
+});
 
 interface TaskData {
   id: number;

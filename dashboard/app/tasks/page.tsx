@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Plus, Calendar, Edit, Trash2, ArrowUpDown } from 'lucide-react';
 import axios from 'axios';
 import { Task } from '@/lib/tasks-api';
@@ -22,8 +23,15 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { EditTaskModal } from '@/components/EditTaskModal';
-import { DeleteConfirmModal } from '@/components/DeleteConfirmModal';
+
+// Lazy load modals
+const EditTaskModal = dynamic(() => import('@/components/EditTaskModal').then(m => ({ default: m.EditTaskModal })), {
+  ssr: false
+});
+
+const DeleteConfirmModal = dynamic(() => import('@/components/DeleteConfirmModal').then(m => ({ default: m.DeleteConfirmModal })), {
+  ssr: false
+});
 
 interface Project {
   id: number;

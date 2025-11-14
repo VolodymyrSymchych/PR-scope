@@ -2,7 +2,8 @@
 
 import type { CSSProperties, Dispatch, ReactNode, SetStateAction } from 'react';
 import type { Modifier } from '@dnd-kit/core';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
+import dynamic from 'next/dynamic';
 import {
   FolderKanban,
   CheckCircle,
@@ -14,17 +15,34 @@ import {
   Plus,
   SlidersHorizontal,
   Undo2,
+  X,
+  Save,
+  Grid3x3,
 } from 'lucide-react';
 import { StatsCard } from '@/components/StatsCard';
 import { ProjectCard } from '@/components/ProjectCard';
-import { CalendarView } from '@/components/CalendarView';
-import { BudgetTracking } from '@/components/BudgetTracking';
-import { ProgressSection } from '@/components/ProgressSection';
-import { UpcomingTasks } from '@/components/UpcomingTasks';
 import { api, Project, Stats } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Loader } from '@/components/Loader';
+
+// Lazy load heavy components
+const CalendarView = dynamic(() => import('@/components/CalendarView').then(m => ({ default: m.CalendarView })), {
+  ssr: false,
+  loading: () => <div className="glass-medium rounded-2xl p-6 h-96 animate-pulse" />
+});
+
+const BudgetTracking = dynamic(() => import('@/components/BudgetTracking').then(m => ({ default: m.BudgetTracking })), {
+  loading: () => <div className="glass-medium rounded-2xl p-6 h-64 animate-pulse" />
+});
+
+const ProgressSection = dynamic(() => import('@/components/ProgressSection').then(m => ({ default: m.ProgressSection })), {
+  loading: () => <div className="glass-medium rounded-2xl p-6 h-48 animate-pulse" />
+});
+
+const UpcomingTasks = dynamic(() => import('@/components/UpcomingTasks').then(m => ({ default: m.UpcomingTasks })), {
+  loading: () => <div className="glass-medium rounded-2xl p-6 h-96 animate-pulse" />
+});
 import {
   DndContext,
   DragEndEvent,
@@ -107,7 +125,7 @@ const createGridSnapModifier = (gridSize: number): Modifier => {
   };
 };
 
-function StatsOverviewWidget({ stats, projects }: { stats: Stats; projects: Project[] }) {
+const StatsOverviewWidget = memo(function StatsOverviewWidget({ stats, projects }: { stats: Stats; projects: Project[] }) {
   const highRiskCount = projects.filter(
     (project) => project.risk_level === 'HIGH' || project.risk_level === 'CRITICAL'
   ).length;
@@ -142,9 +160,9 @@ function StatsOverviewWidget({ stats, projects }: { stats: Stats; projects: Proj
       />
     </div>
   );
-}
+});
 
-function RecentProjectsWidget({
+const RecentProjectsWidget = memo(function RecentProjectsWidget({
   projects,
   router,
 }: {
@@ -189,7 +207,7 @@ function RecentProjectsWidget({
       )}
     </div>
   );
-}
+});
 
 function WidgetLibraryItem({
   definition,
@@ -373,15 +391,17 @@ const DEFAULT_WIDGET_SIZE_MAP: Record<string, (typeof AVAILABLE_WIDTHS)[number]>
 const getDefaultWidgetSize = (id: string): (typeof AVAILABLE_WIDTHS)[number] =>
   DEFAULT_WIDGET_SIZE_MAP[id] ?? AVAILABLE_WIDTHS[0];
 
-function DashboardWidgetContainer({
+const DashboardWidgetContainer = memo(function DashboardWidgetContainer({
   widget,
   size,
   onResize,
+  onRemove,
   children,
 }: {
   widget: DashboardWidgetDefinition;
   size: (typeof AVAILABLE_WIDTHS)[number];
   onResize: (id: string, direction: 'increase' | 'decrease') => void;
+  onRemove: (id: string) => void;
   children: ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -442,13 +462,29 @@ function DashboardWidgetContainer({
             <Plus className="h-3.5 w-3.5" />
           </button>
         </div>
+        <div className="pointer-events-auto ml-1 h-4 w-px bg-white/20" />
+        <button
+          type="button"
+          onClick={() => onRemove(widget.id)}
+          className="pointer-events-auto rounded p-1 transition-colors hover:bg-red-500/30 hover:text-red-300"
+          title="Remove widget"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
       <div className={cn('h-full', isDragging && 'pointer-events-none')}>
         {children}
       </div>
     </div>
   );
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison for better performance
+  return (
+    prevProps.widget.id === nextProps.widget.id &&
+    prevProps.size === nextProps.size &&
+    prevProps.children === nextProps.children
+  );
+});
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -472,6 +508,9 @@ export default function DashboardPage() {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [gridPatternSize, setGridPatternSize] = useState<number>(DEFAULT_GRID_PATTERN);
   const hasLoadedFromStorage = useRef(false);
+  const [gridColumns, setGridColumns] = useState<12 | 16 | 24>(12);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -570,6 +609,9 @@ export default function DashboardPage() {
         });
         setWidgetSizes(restoredSizes);
       }
+      if (typeof parsed.gridColumns === 'number' && [12, 16, 24].includes(parsed.gridColumns)) {
+        setGridColumns(parsed.gridColumns as 12 | 16 | 24);
+      }
       hasLoadedFromStorage.current = true;
     } catch (error) {
       console.warn('Failed to parse dashboard widget configuration:', error);
@@ -577,20 +619,11 @@ export default function DashboardPage() {
     }
   }, []);
 
+  // Track unsaved changes instead of auto-saving
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    // Don't save to localStorage until we've loaded from it (prevents overwriting with defaults)
     if (!hasLoadedFromStorage.current) return;
-    
-    window.localStorage.setItem(
-      LOCAL_STORAGE_KEY,
-      JSON.stringify({
-        selectedWidgets,
-        widgetSizes,
-        updatedAt: new Date().toISOString(),
-      })
-    );
-  }, [selectedWidgets, widgetSizes]);
+    setHasUnsavedChanges(true);
+  }, [selectedWidgets, widgetSizes, gridColumns]);
 
   const loadData = async () => {
     try {
@@ -604,14 +637,14 @@ export default function DashboardPage() {
     }
   };
 
-  const handleDragStart = (event: DragStartEvent) => {
+  const handleDragStart = useCallback((event: DragStartEvent) => {
     const { active } = event;
     if (active.data.current?.task) {
       setActiveTask(active.data.current.task);
     }
-  };
+  }, []);
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event;
 
     const itemType = active.data.current?.type;
@@ -673,7 +706,7 @@ export default function DashboardPage() {
         toast.error(`Failed to update task: ${error.response?.data?.error || error.message}`);
       }
     }
-  };
+  }, [setRefreshKey]);
 
   const widgetMap = useMemo(() => {
     const map = new Map<string, DashboardWidgetDefinition>();
@@ -723,7 +756,7 @@ export default function DashboardPage() {
     };
   }, [renderableWidgets.length, updateGridMetrics]);
 
-  const handleResizeWidget = (id: string, direction: 'increase' | 'decrease') => {
+  const handleResizeWidget = useCallback((id: string, direction: 'increase' | 'decrease') => {
     setWidgetSizes((prev) => {
       const currentSize = prev[id] ?? getDefaultWidgetSize(id);
       const alignedSize = isAvailableWidth(currentSize) ? currentSize : getDefaultWidgetSize(id);
@@ -743,9 +776,9 @@ export default function DashboardPage() {
         [id]: AVAILABLE_WIDTHS[nextIndex],
       };
     });
-  };
+  }, []);
 
-  const handleToggleWidget = (id: string) => {
+  const handleToggleWidget = useCallback((id: string) => {
     setSelectedWidgets((current) => {
       const exists = current.includes(id);
       if (exists) {
@@ -762,20 +795,54 @@ export default function DashboardPage() {
       });
       return [...current, id];
     });
-  };
+  }, []);
 
-  const handleResetWidgets = () => {
+  const handleResetWidgets = useCallback(() => {
     setSelectedWidgets(DEFAULT_WIDGETS);
     setWidgetSizes({ ...DEFAULT_WIDGET_SIZE_MAP });
+    setGridColumns(12);
+  }, []);
+
+  const handleSaveDashboard = async () => {
+    setIsSaving(true);
+    try {
+      const config = {
+        selectedWidgets,
+        widgetSizes,
+        gridColumns,
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Save to localStorage
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(config));
+      }
+
+      // Save to database
+      await axios.post('/api/dashboard/layout', config);
+
+      setHasUnsavedChanges(false);
+      toast.success('Dashboard layout saved successfully');
+    } catch (error: any) {
+      console.error('Failed to save dashboard layout:', error);
+      toast.error('Failed to save dashboard layout');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (loading) {
     return <Loader message="Loading your personalized dashboard..." />;
   }
 
+  const gridColsClass =
+    gridColumns === 24 ? 'xl:grid-cols-24' :
+    gridColumns === 16 ? 'xl:grid-cols-16' :
+    'xl:grid-cols-12';
+
   return (
-    <DndContext 
-      sensors={sensors} 
+    <DndContext
+      sensors={sensors}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       modifiers={[widgetGridSnapModifier]}
@@ -787,16 +854,84 @@ export default function DashboardPage() {
             <p className="text-sm text-text-tertiary">
               Tailor the workspace by choosing which widgets appear on your home view.
             </p>
-        </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Grid Density Selector - только в режиме кастомизации */}
+            {isCustomizationOpen && (
+              <div className="flex items-center gap-1 rounded-lg border border-white/10 p-1">
                 <button
-            type="button"
-            onClick={() => setIsCustomizationOpen((prev) => !prev)}
-            className="flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-text-secondary transition-all hover:border-primary/60 hover:text-text-primary"
+                  type="button"
+                  onClick={() => setGridColumns(12)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-semibold transition-all",
+                    gridColumns === 12
+                      ? "bg-primary/20 text-primary border border-primary/40"
+                      : "text-text-tertiary hover:text-text-secondary"
+                  )}
+                  title="12 columns (Standard)"
                 >
-            <SlidersHorizontal className="h-4 w-4" />
-            {isCustomizationOpen ? 'Hide customization' : 'Customize dashboard'}
+                  <Grid3x3 className="h-3.5 w-3.5" />
+                  12
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGridColumns(16)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-semibold transition-all",
+                    gridColumns === 16
+                      ? "bg-primary/20 text-primary border border-primary/40"
+                      : "text-text-tertiary hover:text-text-secondary"
+                  )}
+                  title="16 columns (Wide)"
+                >
+                  <Grid3x3 className="h-3.5 w-3.5" />
+                  16
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGridColumns(24)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-semibold transition-all",
+                    gridColumns === 24
+                      ? "bg-primary/20 text-primary border border-primary/40"
+                      : "text-text-tertiary hover:text-text-secondary"
+                  )}
+                  title="24 columns (Ultrawide)"
+                >
+                  <Grid3x3 className="h-3.5 w-3.5" />
+                  24
                 </button>
               </div>
+            )}
+
+            {/* Customize Button */}
+            <button
+              type="button"
+              onClick={() => setIsCustomizationOpen((prev) => !prev)}
+              className="flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-text-secondary transition-all hover:border-primary/60 hover:text-text-primary"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              {isCustomizationOpen ? 'Hide customization' : 'Customize dashboard'}
+            </button>
+
+            {/* Save Button - только в режиме кастомизации */}
+            {isCustomizationOpen && hasUnsavedChanges && (
+              <button
+                type="button"
+                onClick={handleSaveDashboard}
+                disabled={isSaving}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all",
+                  "bg-primary/20 text-primary border border-primary/40 hover:bg-primary/30",
+                  isSaving && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                <Save className="h-4 w-4" />
+                {isSaving ? 'Saving...' : 'Save Layout'}
+              </button>
+            )}
+          </div>
+        </div>
 
         {isCustomizationOpen && (
           <DashboardCustomizationPanel
@@ -804,11 +939,38 @@ export default function DashboardPage() {
             availableWidgets={AVAILABLE_WIDGETS}
             onToggleWidget={handleToggleWidget}
             onReset={handleResetWidgets}
-                    />
+          />
+        )}
+
+        {/* Customize Mode Indicator */}
+        {isCustomizationOpen && (
+          <div className="glass-medium rounded-xl border border-primary/30 p-4 flex items-center justify-between animate-fadeIn">
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <div>
+                <p className="text-sm font-semibold text-text-primary">
+                  Customize Mode Active
+                </p>
+                <p className="text-xs text-text-tertiary">
+                  Drag widgets to reorder • Resize using +/- controls • Remove with X button
+                </p>
+              </div>
+            </div>
+            {hasUnsavedChanges && (
+              <span className="text-xs px-2 py-1 rounded-full bg-warning/20 text-warning border border-warning/30">
+                Unsaved Changes
+              </span>
+            )}
+          </div>
         )}
 
         {renderableWidgets.length > 0 ? (
-          <div className="relative rounded-3xl border border-white/5 bg-white/0 p-4 transition-all duration-300 hover:border-white/10">
+          <div className={cn(
+            "relative rounded-3xl border p-4 transition-all duration-300",
+            isCustomizationOpen
+              ? "border-primary/30 bg-primary/5"
+              : "border-white/5 bg-white/0 hover:border-white/10"
+          )}>
             <div
               className="pointer-events-none absolute inset-0 rounded-[22px] opacity-60"
               style={gridBackgroundStyle}
@@ -818,7 +980,7 @@ export default function DashboardPage() {
                 items={renderableWidgets.map((widget) => widget.id)}
                 strategy={rectSortingStrategy}
               >
-                <div ref={gridRef} className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+                <div ref={gridRef} className={cn("grid grid-cols-1 gap-6", gridColsClass)}>
                   {renderableWidgets.map((widget) => {
                     const widgetSize = widgetSizes[widget.id] ?? widget.defaultSize;
                     return (
@@ -827,6 +989,7 @@ export default function DashboardPage() {
                         widget={widget}
                         size={widgetSize}
                         onResize={handleResizeWidget}
+                        onRemove={handleToggleWidget}
                       >
                         {widget.render({
                           stats,
@@ -843,7 +1006,7 @@ export default function DashboardPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+          <div className={cn("grid grid-cols-1 gap-6", gridColsClass)}>
             <div className="col-span-full rounded-2xl border border-dashed border-white/10 p-12 text-center">
               <p className="text-lg font-semibold text-text-primary">Your dashboard is empty</p>
               <p className="mt-2 text-sm text-text-tertiary">
