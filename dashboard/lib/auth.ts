@@ -29,12 +29,17 @@ export async function createSession(data: SessionData) {
     .sign(JWT_SECRET);
 
   const cookieStore = await cookies();
+  
+  // Determine if we're in production (Vercel)
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+  
   cookieStore.set('session', token, {
     httpOnly: true,
-    secure: true, // Always use secure cookies
-    sameSite: 'strict', // Upgrade from 'lax' for better CSRF protection
+    secure: isProduction, // Use secure cookies in production (Vercel uses HTTPS)
+    sameSite: 'lax', // Changed from 'strict' to 'lax' for better compatibility with Vercel
     maxAge: SESSION_DURATION,
     path: '/',
+    // Don't set domain - let browser handle it automatically for better compatibility
   });
 
   return token;
